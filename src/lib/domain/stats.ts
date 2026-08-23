@@ -2,6 +2,7 @@ export interface CompletedGameRecord {
   tableId: string;
   tableName: string;
   groupId: string | null;
+  groupName: string | null;
   playedAt: string; // ISO timestamp of completion
   buyInCount: number;
   totalPaidAgorot: number;
@@ -217,7 +218,7 @@ export function summariseByGroup(games: readonly CompletedGameRecord[]): TableGr
     } else {
       map.set(key, {
         key,
-        name: g.tableName,
+        name: g.groupName ?? g.tableName,
         gamesPlayed: 1,
         firstPlayedAt: g.playedAt,
         lastPlayedAt: g.playedAt,

@@ -43,7 +43,7 @@ export default async function MyGroupsPage() {
               <div className="min-w-0">
                 <p className="truncate font-bold text-ink">{group.name}</p>
                 <p className="mt-0.5 text-[0.7rem] text-ink-faint">
-                  <Num>{gamesWord(group.gamesPlayed)}</Num> · מ־
+                  {gamesWord(group.gamesPlayed)} · מ־
                   <Num>{formatDate(group.firstPlayedAt)}</Num> עד{' '}
                   <Num>{formatDate(group.lastPlayedAt)}</Num>
                 </p>

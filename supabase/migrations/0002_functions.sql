@@ -112,9 +112,10 @@ create or replace function public.create_poker_table(
 ) returns public.poker_tables
 language plpgsql security definer set search_path = public as $$
 declare
-  v_uid   uuid := public.require_uid();
-  v_table public.poker_tables;
-  v_name  text;
+  v_uid    uuid := public.require_uid();
+  v_table  public.poker_tables;
+  v_name   text;
+  v_player uuid;
 begin
   if p_planned_end_at <= p_planned_start_at then
     raise exception 'INVALID_INPUT';
@@ -142,12 +143,10 @@ begin
       into v_name from public.profiles pr where pr.id = v_uid;
 
     insert into public.table_players (table_id, user_id, display_name, status, is_admin, approved_at)
-    values (v_table.id, v_uid, coalesce(v_name, 'מנהל השולחן'), 'ACTIVE', true, now());
+    values (v_table.id, v_uid, coalesce(v_name, 'מנהל השולחן'), 'ACTIVE', true, now())
+    returning id into v_player;
 
-    perform public.internal_add_buyin(
-      (select id from public.table_players where table_id = v_table.id and user_id = v_uid),
-      'INITIAL_BUYIN', null, v_uid
-    );
+    perform public.internal_add_buyin(v_player, 'INITIAL_BUYIN', null, v_uid);
   end if;
 
   return v_table;

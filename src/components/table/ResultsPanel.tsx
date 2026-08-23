@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useTransition } from 'react';
+import { useState, useTransition } from 'react';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
 import { Card, SectionTitle } from '@/components/ui/Card';
@@ -13,10 +13,12 @@ import { formatChips, formatMoney, formatSignedMoney } from '@/lib/format';
 import { buyInsWord } from '@/lib/labels';
 import { markSettlementPaidAction } from '@/lib/actions/counting';
 import type { TableViewModel } from '@/lib/data/table';
+import { CorrectResultsDialog } from './CorrectResultsDialog';
 
 /** Final results + who transfers money to whom. */
 export function ResultsPanel({ model }: { model: TableViewModel }) {
   const { table, results, settlements, players, viewer } = model;
+  const [correcting, setCorrecting] = useState(false);
 
   const nameByPlayerId = new Map(players.map((p) => [p.id, p.displayName] as const));
   for (const result of results) nameByPlayerId.set(result.table_player_id, result.display_name);
@@ -43,7 +45,7 @@ export function ResultsPanel({ model }: { model: TableViewModel }) {
             <Num>{formatSignedMoney(myResult.profit_loss_agorot)}</Num>
           </p>
           <p className="mt-2 text-xs text-ink-muted">
-            <Num>{buyInsWord(myResult.buy_in_count)}</Num> ·{' '}
+            {buyInsWord(myResult.buy_in_count)} ·{' '}
             <Num>{formatMoney(myResult.total_paid_agorot)}</Num> השקעה ·{' '}
             <Num>{formatChips(myResult.final_chips)}</Num> ז׳יטונים בסוף
           </p>
@@ -101,6 +103,33 @@ export function ResultsPanel({ model }: { model: TableViewModel }) {
         nameByPlayerId={nameByPlayerId}
         isAdmin={viewer.isAdmin}
       />
+
+      <div className="grid gap-2">
+        <Link
+          href={`/table/${table.id}/leaderboard`}
+          className="flex h-12 items-center justify-center rounded-xl border border-line bg-surface-2 font-semibold text-ink"
+        >
+          דירוג השולחן
+        </Link>
+        {viewer.isAdmin ? (
+          <button
+            type="button"
+            onClick={() => setCorrecting(true)}
+            className="h-11 rounded-xl border border-warn/30 bg-warn/10 text-sm font-semibold text-warn"
+          >
+            תיקון תוצאות
+          </button>
+        ) : null}
+      </div>
+
+      {viewer.isAdmin ? (
+        <CorrectResultsDialog
+          open={correcting}
+          tableId={table.id}
+          results={results}
+          onClose={() => setCorrecting(false)}
+        />
+      ) : null}
 
       {viewer.isAnonymous ? (
         <Card className="border-brand/40 text-center">

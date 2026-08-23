@@ -249,11 +249,11 @@ function SelfCountCard({ model }: { model: TableViewModel }) {
 
       {approved ? (
         <p className="mt-3 text-sm font-semibold text-profit">
-          מנהל השולחן אישר: <Num>{chipsWord(player.approvedChips!)}</Num>
+          מנהל השולחן אישר: {chipsWord(player.approvedChips!)}
         </p>
       ) : player.submittedChips !== null ? (
         <p className="mt-3 text-sm text-ink-muted">
-          נשלח: <Num>{chipsWord(player.submittedChips)}</Num> — ממתין לאישור מנהל השולחן
+          נשלח: {chipsWord(player.submittedChips)} — ממתין לאישור מנהל השולחן
         </p>
       ) : null}
     </Card>

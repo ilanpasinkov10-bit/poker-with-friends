@@ -28,7 +28,14 @@ export default async function StatsPage() {
   const records = computeRecords(games);
   const series = buildProfitSeries(games);
 
-  const rows: { label: string; value: string; tone?: 'profit' | 'loss' }[] = [
+  // `numeric: false` marks values that mix Hebrew with a number — those must
+  // stay in the RTL flow rather than being isolated left-to-right.
+  const rows: {
+    label: string;
+    value: string;
+    tone?: 'profit' | 'loss';
+    numeric?: boolean;
+  }[] = [
     { label: 'משחקים ששוחקו', value: String(stats.gamesPlayed) },
     {
       label: 'מאזן כולל',
@@ -55,7 +62,11 @@ export default async function StatsPage() {
       value: formatSignedMoney(stats.biggestLossAgorot),
       tone: 'loss',
     },
-    { label: 'רצף חיובי ארוך ביותר', value: gamesWord(stats.longestWinStreak) },
+    {
+      label: 'רצף חיובי ארוך ביותר',
+      value: gamesWord(stats.longestWinStreak),
+      numeric: false,
+    },
     {
       label: 'רצף נוכחי',
       value:
@@ -65,6 +76,7 @@ export default async function StatsPage() {
             ? `${stats.currentStreak} ברווח`
             : `${Math.abs(stats.currentStreak)} בהפסד`,
       tone: stats.currentStreak > 0 ? 'profit' : stats.currentStreak < 0 ? 'loss' : undefined,
+      numeric: false,
     },
   ];
 
@@ -86,7 +98,7 @@ export default async function StatsPage() {
                       : 'text-ink')
                 }
               >
-                <Num>{row.value}</Num>
+                {row.numeric === false ? row.value : <Num>{row.value}</Num>}
               </span>
             </div>
           ))}

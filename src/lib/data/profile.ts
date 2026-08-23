@@ -43,7 +43,14 @@ export const loadPlayerHistory = cache(async function loadPlayerHistory(
       .in('table_id', tableIds),
   ]);
 
-  const tableById = new Map(((tables ?? []) as PokerTableRow[]).map((t) => [t.id, t] as const));
+  const tableRows = (tables ?? []) as PokerTableRow[];
+  const tableById = new Map(tableRows.map((t) => [t.id, t] as const));
+
+  const groupIds = [...new Set(tableRows.map((t) => t.group_id).filter((id): id is string => !!id))];
+  const { data: groups } = groupIds.length
+    ? await supabase.from('poker_groups').select('id, name').in('id', groupIds)
+    : { data: [] };
+  const groupNameById = new Map((groups ?? []).map((g) => [g.id, g.name] as const));
   const aggregates = new Map<string, { players: number; pot: number }>();
   for (const row of siblings ?? []) {
     const current = aggregates.get(row.table_id) ?? { players: 0, pot: 0 };
@@ -59,6 +66,7 @@ export const loadPlayerHistory = cache(async function loadPlayerHistory(
       tableId: result.table_id,
       tableName: table?.name ?? 'שולחן',
       groupId: table?.group_id ?? null,
+      groupName: table?.group_id ? (groupNameById.get(table.group_id) ?? null) : null,
       playedAt: table?.completed_at ?? result.created_at,
       buyInCount: result.buy_in_count,
       totalPaidAgorot: result.total_paid_agorot,

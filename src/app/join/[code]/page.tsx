@@ -63,7 +63,7 @@ export default async function JoinTablePage({ params }: { params: Promise<{ code
 
           <p className="mt-4 text-center text-xs text-ink-faint">
             כל כניסה: <Num>{formatMoney(table.buy_in_agorot)}</Num> ·{' '}
-            <Num>{chipsWord(table.chips_per_buy_in)}</Num>
+            {chipsWord(table.chips_per_buy_in)}
           </p>
         </section>
 

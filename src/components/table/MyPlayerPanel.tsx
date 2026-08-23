@@ -63,7 +63,7 @@ export function MyPlayerPanel({ model }: { model: TableViewModel }) {
             </Badge>
           ) : (
             <p className="text-xs text-ink-faint">
-              <Num>{buyInsWord(player.buyInCount)}</Num> מתוך <Num>{table.max_buy_ins}</Num>
+              {buyInsWord(player.buyInCount)} מתוך <Num>{table.max_buy_ins}</Num>
             </p>
           )}
         </div>

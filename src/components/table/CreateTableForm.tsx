@@ -39,6 +39,7 @@ export function CreateTableForm({
   const [error, setError] = useState<string | null>(null);
 
   const [name, setName] = useState('');
+  const [groupName, setGroupName] = useState('');
   const [gameDate, setGameDate] = useState(defaultDate);
   const [startTime, setStartTime] = useState(defaultStart);
   const [endTime, setEndTime] = useState(defaultEnd);
@@ -77,6 +78,7 @@ export function CreateTableForm({
             playerVisibility: visibility,
             countingMode,
             adminPlays,
+            groupName: groupName.trim() || undefined,
           });
           if (!result.ok) {
             setError(result.message);
@@ -97,6 +99,20 @@ export function CreateTableForm({
             placeholder="פוקר של יום חמישי"
             value={name}
             onChange={(e) => setName(e.target.value)}
+          />
+        </Field>
+
+        <Field
+          label="קבוצה קבועה (לא חובה)"
+          htmlFor="groupName"
+          hint="שולחנות עם אותו שם קבוצה מצטברים להיסטוריה ולדירוג משותפים"
+        >
+          <TextInput
+            id="groupName"
+            maxLength={60}
+            placeholder="החבר׳ה מהשכונה"
+            value={groupName}
+            onChange={(e) => setGroupName(e.target.value)}
           />
         </Field>
 
@@ -195,7 +211,7 @@ export function CreateTableForm({
         {Number.isFinite(buyInNumber) && Number.isFinite(chipsNumber) && chipsNumber > 0 ? (
           <p className="rounded-xl bg-surface-2 px-3 py-2.5 text-xs text-ink-muted">
             כל כניסה: <Num>{formatMoney(Math.round(buyInNumber * 100))}</Num> ={' '}
-            <Num>{chipsWord(chipsNumber)}</Num>
+            {chipsWord(chipsNumber)}
           </p>
         ) : null}
       </Card>

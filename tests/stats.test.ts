@@ -13,6 +13,7 @@ const game = (
   tableId: overrides.tableId ?? `t-${overrides.playedAt}`,
   tableName: overrides.tableName ?? 'שולחן',
   groupId: overrides.groupId ?? null,
+  groupName: overrides.groupName ?? null,
   buyInCount: overrides.buyInCount ?? 2,
   totalPaidAgorot: overrides.totalPaidAgorot ?? 10_000,
   chipsIssued: overrides.chipsIssued ?? 1000,
@@ -113,12 +114,25 @@ describe('records', () => {
 describe('grouping by recurring table', () => {
   it('rolls games up per group and keeps first/last participation', () => {
     const groups = summariseByGroup([
-      game({ playedAt: '2026-01-01T20:00:00Z', profitLossAgorot: 1000, groupId: 'g1', tableName: 'קבוצה א' }),
-      game({ playedAt: '2026-01-08T20:00:00Z', profitLossAgorot: -400, groupId: 'g1', tableName: 'קבוצה א' }),
+      game({
+        playedAt: '2026-01-01T20:00:00Z',
+        profitLossAgorot: 1000,
+        groupId: 'g1',
+        groupName: 'החבר׳ה',
+        tableName: 'משחק ראשון',
+      }),
+      game({
+        playedAt: '2026-01-08T20:00:00Z',
+        profitLossAgorot: -400,
+        groupId: 'g1',
+        groupName: 'החבר׳ה',
+        tableName: 'משחק שני',
+      }),
       game({ playedAt: '2026-01-09T20:00:00Z', profitLossAgorot: 700, tableId: 'solo', tableName: 'חד פעמי' }),
     ]);
 
     const recurring = groups.find((g) => g.key === 'g1')!;
+    expect(recurring.name).toBe('החבר׳ה');
     expect(recurring.gamesPlayed).toBe(2);
     expect(recurring.netAgorot).toBe(600);
     expect(recurring.firstPlayedAt).toBe('2026-01-01T20:00:00Z');

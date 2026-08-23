@@ -19,8 +19,8 @@ export function GameHistoryList({ games }: { games: CompletedGameRecord[] }) {
                 <p className="truncate font-bold text-ink">{game.tableName}</p>
                 <p className="mt-0.5 text-[0.7rem] text-ink-faint">
                   <Num>{formatDate(game.playedAt)}</Num> ·{' '}
-                  <Num>{playersWord(game.playerCount)}</Num> ·{' '}
-                  <Num>{buyInsWord(game.buyInCount)}</Num>
+                  {playersWord(game.playerCount)} ·{' '}
+                  {buyInsWord(game.buyInCount)}
                 </p>
               </div>
               <span

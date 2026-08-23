@@ -49,7 +49,7 @@ export function PlayerCard({
           {showMoney ? (
             <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-ink-faint">
               <span>
-                <Num>{buyInsWord(player.buyInCount)}</Num>
+                {buyInsWord(player.buyInCount)}
               </span>
               <span aria-hidden>·</span>
               <span>

@@ -110,7 +110,7 @@ export function AdminPlayerActions({
           </Button>
           {atMax ? (
             <p className="text-center text-xs font-semibold text-warn">
-              השחקן הגיע למספר הכניסות המקסימלי (<Num>{buyInsWord(maxBuyIns)}</Num>)
+              השחקן הגיע למספר הכניסות המקסימלי ({buyInsWord(maxBuyIns)})
             </p>
           ) : null}
 

@@ -24,7 +24,7 @@ export function ProfileHeader({
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-2xl font-black text-ink">{name}</h1>
           <p className="mt-0.5 text-sm text-ink-faint">
-            <Num>{gamesWord(stats.gamesPlayed)}</Num>
+            {gamesWord(stats.gamesPlayed)}
           </p>
           <Link
             href="/profile/settings"

@@ -20,6 +20,8 @@ const createSchema = z.object({
   playerVisibility: z.enum(['OPEN', 'PRIVATE']),
   countingMode: z.enum(['ADMIN_COUNT', 'SELF_COUNT']),
   adminPlays: z.boolean(),
+  /** Optional recurring circle. Reused by name so weekly games stack up. */
+  groupName: z.string().trim().max(60).optional(),
 });
 
 export type CreateTableInput = z.input<typeof createSchema>;
@@ -46,6 +48,15 @@ export async function createTableAction(
       throw new AppError('NOT_AUTHORIZED', 'כדי לפתוח שולחן צריך חשבון רשום');
     }
 
+    let groupId: string | null = null;
+    if (values.groupName) {
+      const { data: group, error: groupError } = await supabase.rpc('get_or_create_poker_group', {
+        p_name: values.groupName,
+      });
+      if (groupError) throw groupError;
+      groupId = String(group);
+    }
+
     const { data, error } = await supabase.rpc('create_poker_table', {
       p_name: values.name,
       p_game_date: values.gameDate,
@@ -58,6 +69,7 @@ export async function createTableAction(
       p_player_visibility: values.playerVisibility,
       p_counting_mode: values.countingMode,
       p_admin_plays: values.adminPlays,
+      p_group_id: groupId,
     });
     if (error) throw error;
 

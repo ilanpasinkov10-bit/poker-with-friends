@@ -30,7 +30,19 @@ declare
 begin
   select * into v_table from public.poker_tables where id = p_table;
   if not found then raise exception 'TABLE_NOT_FOUND'; end if;
-  if not public.is_table_member(p_table) then raise exception 'NOT_AUTHORIZED'; end if;
+
+  -- This function is SECURITY DEFINER, so it sees every player's figures
+  -- regardless of RLS. Mirror the row policies explicitly: the admin always,
+  -- other members only on an OPEN table or once results are public anyway.
+  if not (
+    public.is_table_admin(p_table)
+    or (
+      public.is_table_member(p_table)
+      and (v_table.player_visibility = 'OPEN' or v_table.status = 'COMPLETED')
+    )
+  ) then
+    raise exception 'NOT_AUTHORIZED';
+  end if;
 
   return query
   with base as (
@@ -97,8 +109,7 @@ declare
   v_missing   int;
   v_pot       bigint;
 begin
-  if not public.is_table_member(p_table) then raise exception 'NOT_AUTHORIZED'; end if;
-
+  -- compute_final_rows performs the visibility check for us.
   select
     coalesce(jsonb_agg(to_jsonb(r) order by r.display_name), '[]'::jsonb),
     coalesce(sum(r.chips_issued), 0),

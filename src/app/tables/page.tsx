@@ -82,7 +82,7 @@ function TableList({ items }: { items: Awaited<ReturnType<typeof loadMyTables>> 
                 <p className="mt-0.5 text-[0.7rem] text-ink-faint">
                   <Num>{formatDate(table.game_date)}</Num> ·{' '}
                   <Num>{formatTime(table.planned_start_at)}</Num> ·{' '}
-                  <Num>{playersWord(playerCount)}</Num>
+                  {playersWord(playerCount)}
                 </p>
               </div>
               <div className="flex shrink-0 flex-col items-end gap-1">

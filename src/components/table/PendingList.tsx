@@ -85,7 +85,7 @@ export function PendingRebuyRequests({
                 {request.displayName} מבקש כניסה נוספת
               </p>
               <p className="text-[0.7rem] text-ink-faint">
-                <Num>{buyInsWord(request.buyInCount)}</Num> מתוך <Num>{maxBuyIns}</Num> ·{' '}
+                {buyInsWord(request.buyInCount)} מתוך <Num>{maxBuyIns}</Num> ·{' '}
                 <Num>{formatTime(request.requestedAt)}</Num>
               </p>
             </div>

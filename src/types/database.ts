@@ -261,6 +261,7 @@ export type Database = {
         Returns: undefined;
       };
       mark_settlement_paid: { Args: { p_settlement: string; p_paid: boolean }; Returns: undefined };
+      get_or_create_poker_group: { Args: { p_name: string }; Returns: string };
       get_table_leaderboard: { Args: { p_table: string }; Returns: unknown };
       get_shared_profile_stats: { Args: { p_user: string }; Returns: unknown };
     };

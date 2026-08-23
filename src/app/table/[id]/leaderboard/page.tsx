@@ -58,7 +58,7 @@ export default async function LeaderboardPage({ params }: { params: Promise<{ id
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-bold text-ink">{row.display_name}</p>
                   <p className="text-[0.7rem] text-ink-faint">
-                    <Num>{gamesWord(row.games_played)}</Num> ·{' '}
+                    {gamesWord(row.games_played)} ·{' '}
                     <Num>
                       {row.games_played > 0
                         ? Math.round((row.winning_games / row.games_played) * 100)
