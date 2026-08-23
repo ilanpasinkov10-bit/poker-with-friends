@@ -131,6 +131,26 @@ match the Hebrew reading direction.
 
 ---
 
+## Previewing the UI without a backend
+
+`/dev/preview` is a development-only gallery of every major screen and state,
+rendered from the real components with static fixture props (see
+`src/app/dev/preview/`). It exists so the interface can be reviewed before a
+Supabase project is configured.
+
+```bash
+cp .env.example .env.local        # placeholder values are enough for the gallery
+npm run dev                       # then open http://localhost:3000/dev/preview
+```
+
+Pick a screen from the selector at the top; append `&bare=1` to hide the
+gallery chrome. Buttons that would call a server action are inert without a
+backend, but local component state — modals, dialogs, form inputs — works.
+
+The route is blocked in production two ways over: middleware returns a plain
+404 for anything under `/dev` when `NODE_ENV=production`, and the page itself
+calls `notFound()`. No production module imports anything from that folder.
+
 ## Scripts
 
 ```bash
