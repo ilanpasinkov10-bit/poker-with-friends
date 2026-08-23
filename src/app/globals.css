@@ -1,0 +1,132 @@
+@import 'tailwindcss';
+
+/* ---------------------------------------------------------------------------
+   Design tokens — dark, fintech-inspired, minimal.
+   Profit is emerald, loss is rose, the brand accent is a muted violet.
+   --------------------------------------------------------------------------- */
+@theme {
+  --color-base: #0a0b10;
+  --color-surface: #14161f;
+  --color-surface-2: #1b1e29;
+  --color-surface-3: #232735;
+  --color-line: #2a2f3d;
+  --color-line-soft: #21252f;
+
+  --color-ink: #f2f4f8;
+  --color-ink-muted: #a2a9bb;
+  --color-ink-faint: #6b7386;
+
+  --color-brand: #7c6cf6;
+  --color-brand-soft: #2a2550;
+  --color-brand-ink: #b6adff;
+
+  --color-profit: #34d399;
+  --color-profit-soft: #10301f;
+  --color-loss: #f87191;
+  --color-loss-soft: #3a1420;
+  --color-warn: #f5b544;
+  --color-warn-soft: #382713;
+
+  --font-sans: var(--font-heebo), 'Heebo', 'Segoe UI', system-ui, -apple-system, sans-serif;
+
+  --radius-xl2: 1.25rem;
+}
+
+@layer base {
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html {
+    background-color: var(--color-base);
+    color-scheme: dark;
+  }
+
+  body {
+    background-color: var(--color-base);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    overscroll-behavior-y: none;
+  }
+
+  /* Numbers, codes, times and money stay left-to-right inside RTL text. */
+  .ltr-num {
+    direction: ltr;
+    unicode-bidi: isolate;
+    font-variant-numeric: tabular-nums;
+  }
+
+  input,
+  select,
+  textarea,
+  button {
+    font-family: inherit;
+  }
+
+  /* iOS zooms in on focus when the font is under 16px. */
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-surface-3);
+    border-radius: 999px;
+  }
+}
+
+@layer utilities {
+  .safe-bottom {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+  .safe-top {
+    padding-top: max(0.5rem, env(safe-area-inset-top));
+  }
+  .app-shell {
+    margin-inline: auto;
+    width: 100%;
+    max-width: 34rem;
+  }
+  .card-grad {
+    background-image: linear-gradient(160deg, rgba(124, 108, 246, 0.08), transparent 60%);
+  }
+}
+
+@keyframes pwf-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.animate-rise {
+  animation: pwf-rise 0.22s ease-out both;
+}
+
+@keyframes pwf-pulse-ring {
+  0% {
+    box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.35);
+  }
+  100% {
+    box-shadow: 0 0 0 12px rgba(52, 211, 153, 0);
+  }
+}
+.animate-live {
+  animation: pwf-pulse-ring 2s ease-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-rise,
+  .animate-live {
+    animation: none;
+  }
+}
