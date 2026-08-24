@@ -95,7 +95,7 @@ export async function loadPrivacySettings(userId: string): Promise<ProfilePrivac
       profile_id: userId,
       share_stats_with_table_members: true,
       share_detailed_history: false,
-      show_on_leaderboard: true,
+      show_on_leaderboard: false,
       updated_at: new Date().toISOString(),
     }
   );

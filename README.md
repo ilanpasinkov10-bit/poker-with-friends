@@ -23,7 +23,7 @@ The interface is **Hebrew-first and RTL**, designed for a phone in one hand.
 | **Count** | Admin counting or self-counting, with chip-discrepancy detection before anything is finalised. |
 | **Settle** | Profit/loss per player and the minimal set of transfers: *"דניאל מעביר לאילן 80₪"*. |
 | **Remember** | History, statistics, records, profit charts and per-group leaderboards. |
-| **Compare** | A global leaderboard of registered players, ranked on realised profit from finished games only. |
+| **Compare** | An opt-in global leaderboard of registered players, ranked on realised profit from finished games only. |
 | **Tidy up** | A table that never started can be deleted by its owner. |
 
 ---
@@ -105,10 +105,11 @@ is delivered through RLS. A 30-second poll covers a dropped socket.
 ### Privacy
 
 - `show_on_leaderboard` controls whether a registered player appears in the
-  global ranking. **It defaults to on**, because the board needs an authenticated
-  session, shows aggregates only, and covers only people who finished a game —
-  so it reveals no more than the settlement of a table they already shared.
-  Guests never appear. Flipping the default is a one-line migration.
+  global ranking. **It defaults to off — the leaderboard is opt-in.** Ranking
+  someone's lifetime winnings in front of people they have never played with is
+  a real disclosure, so nobody is entered without asking. A missing settings row
+  resolves to off too, so it cannot become a way around the default. Guests
+  never appear at all.
 - `get_public_profile` decides what one player may see about another: aggregate
   stats need either the leaderboard opt-in or a shared table plus that player's
   shared-stats setting, and per-game history additionally needs

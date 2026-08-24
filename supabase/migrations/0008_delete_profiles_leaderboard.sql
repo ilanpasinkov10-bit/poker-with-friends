@@ -10,15 +10,17 @@
 -- ---------------------------------------------------------------------------
 -- Privacy: appearing on the global leaderboard.
 --
--- Default is TRUE. The leaderboard requires an authenticated session, shows
--- aggregates only (never per-game detail), and covers only players who have
--- finished at least one game — so it exposes no more about a person than the
--- settlement of a table they already shared. Defaulting it off would leave
--- every user looking at an empty board with no hint that a switch exists.
--- Flip the default with a one-line migration if you would rather it be opt-in.
+-- Default is FALSE — the leaderboard is strictly opt-in. Ranking a person's
+-- lifetime winnings in front of people they have never played with is a real
+-- disclosure, so nobody is entered into it without asking. A user turns it on
+-- under הגדרות פרופיל → "הצג אותי בלוח ההישגים".
+--
+-- The absence of a settings row is treated the same way: the coalesce
+-- fallbacks below resolve to false, so a missing row can never become a way
+-- around the default.
 -- ---------------------------------------------------------------------------
 alter table public.profile_privacy_settings
-  add column if not exists show_on_leaderboard boolean not null default true;
+  add column if not exists show_on_leaderboard boolean not null default false;
 
 -- ---------------------------------------------------------------------------
 -- Deleting a table that never started.
@@ -107,7 +109,7 @@ begin
       and t.status = 'COMPLETED'
       and (v_since is null or t.completed_at >= v_since)
       and pr.is_guest = false
-      and coalesce(pv.show_on_leaderboard, true)
+      and coalesce(pv.show_on_leaderboard, false)
   ),
   agg as (
     select
@@ -176,13 +178,15 @@ begin
   v_shares  := v_is_self or public.shares_table_with(p_user);
 
   -- Someone with no connection to this player and no public opt-in sees nothing.
-  if not v_shares and not coalesce(v_privacy.show_on_leaderboard, true) then
+  if not v_shares and not coalesce(v_privacy.show_on_leaderboard, false) then
     raise exception 'NOT_AUTHORIZED';
   end if;
 
+  -- Opting into the leaderboard makes the same aggregates public. Otherwise a
+  -- table-mate still sees them, exactly as before this feature existed.
   v_stats_ok :=
     v_is_self
-    or coalesce(v_privacy.show_on_leaderboard, true)
+    or coalesce(v_privacy.show_on_leaderboard, false)
     or (v_shares and coalesce(v_privacy.share_stats_with_table_members, true));
 
   v_history_ok := v_is_self or coalesce(v_privacy.share_detailed_history, false);

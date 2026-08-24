@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
 import { Avatar } from '@/components/ui/Avatar';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -17,11 +18,21 @@ export function LeaderboardList({ rows }: { rows: LeaderboardEntry[] }) {
   const [openUserId, setOpenUserId] = useState<string | null>(null);
 
   if (rows.length === 0) {
+    // The board is opt-in, so "empty" usually means nobody has joined it yet
+    // rather than that something is broken. Say so, and offer the switch.
     return (
       <EmptyState
         emoji="🏆"
-        title="אין עדיין דירוג"
-        description="הדירוג מחושב ממשחקים שהסתיימו בלבד. שחקו משחק אחד עד הסוף והוא יופיע כאן."
+        title="לוח ההישגים ריק"
+        description="ההצטרפות ללוח היא בבחירה. מי שמפעיל את האפשרות בהגדרות הפרופיל יופיע כאן, אחרי משחק אחד שהסתיים."
+        action={
+          <Link
+            href="/profile/settings"
+            className="inline-flex h-11 items-center rounded-xl bg-brand px-5 font-semibold text-white"
+          >
+            הצטרפו ללוח ההישגים
+          </Link>
+        }
       />
     );
   }

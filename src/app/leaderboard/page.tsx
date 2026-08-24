@@ -39,7 +39,8 @@ export default async function LeaderboardPage({
         </div>
 
         <p className="mt-6 text-center text-[0.7rem] text-ink-faint">
-          מוצגים משתמשים רשומים בלבד. אפשר להסתיר את עצמכם בהגדרות הפרופיל.
+          מוצגים משתמשים רשומים שבחרו להופיע בלוח. אפשר להצטרף או לצאת בכל רגע
+          בהגדרות הפרופיל.
         </p>
       </PageShell>
       <BottomNav />

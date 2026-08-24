@@ -87,7 +87,7 @@ export function ProfileSettingsForm({
             checked={onLeaderboard}
             onChange={(value) => savePrivacy({ leaderboard: value })}
             label="הצג אותי בלוח ההישגים"
-            description="הדירוג הכללי מציג שם, תמונה ומאזן מצטבר ממשחקים שהסתיימו"
+            description="כבוי כברירת מחדל. בהפעלה, השם, התמונה והמאזן המצטבר שלכם יוצגו לכל משתמש רשום"
           />
           <Switch
             checked={shareHistory}

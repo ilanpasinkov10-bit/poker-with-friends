@@ -335,7 +335,7 @@ export const PRIVACY_SETTINGS: ProfilePrivacyRow = {
   profile_id: ADMIN_USER_ID,
   share_stats_with_table_members: true,
   share_detailed_history: false,
-  show_on_leaderboard: true,
+  show_on_leaderboard: false,
   updated_at: '2026-08-23T10:00:00.000Z',
 };
 

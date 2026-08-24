@@ -372,19 +372,43 @@ do $$
 declare payload jsonb; rows_ jsonb; guest_rows int; ids text[];
 begin
   perform test_as('a0000000-0000-4000-8000-000000000001');
+
+  -- The board is opt-in: nobody appears until they ask to.
   payload := public.get_global_leaderboard('ALL', 100);
-  rows_ := payload -> 'rows';
+  perform expect(jsonb_array_length(payload -> 'rows') = 0,
+    'the leaderboard is empty until players opt in');
 
-  perform expect(jsonb_array_length(rows_) > 0, 'the leaderboard returns ranked players');
+  -- A player with no settings row at all must not slip through the default.
+  delete from public.profile_privacy_settings
+   where profile_id = 'a0000000-0000-4000-8000-000000000003';
+  select array_agg(r ->> 'user_id') into ids
+    from jsonb_array_elements(public.get_global_leaderboard('ALL', 100) -> 'rows') r;
+  perform expect(not ('a0000000-0000-4000-8000-000000000003' = any(coalesce(ids, '{}'))),
+    'a missing settings row is not a way onto the leaderboard');
+  insert into public.profile_privacy_settings (profile_id)
+  values ('a0000000-0000-4000-8000-000000000003')
+  on conflict (profile_id) do nothing;
 
-  -- Guests must never appear on the global board.
+  -- Opting in — including two guests, who must still be excluded.
+  update public.profile_privacy_settings set show_on_leaderboard = true
+   where profile_id in (
+     'a0000000-0000-4000-8000-000000000001',
+     'a0000000-0000-4000-8000-000000000002',
+     'a0000000-0000-4000-8000-000000000003',
+     'a0000000-0000-4000-8000-000000000004',
+     'a0000000-0000-4000-8000-000000000005'
+   );
+
+  rows_ := public.get_global_leaderboard('ALL', 100) -> 'rows';
+  perform expect(jsonb_array_length(rows_) > 0, 'opted-in players are ranked');
+
   select count(*) into guest_rows
     from jsonb_array_elements(rows_) r
     join public.profiles pr on pr.id = (r ->> 'user_id')::uuid
    where pr.is_guest;
-  perform expect(guest_rows = 0, 'guests are excluded from the global leaderboard');
+  perform expect(guest_rows = 0,
+    'guests are excluded even after opting in');
 
-  -- Ranked by realised profit, descending.
   perform expect(
     (select bool_and(a >= b) from (
        select (r ->> 'net_agorot')::bigint as a,
@@ -393,7 +417,7 @@ begin
      ) x where b is not null),
     'the leaderboard is ordered by lifetime profit');
 
-  -- Opting out removes a player entirely.
+  -- And opting back out removes a player again.
   update public.profile_privacy_settings
      set show_on_leaderboard = false
    where profile_id = 'a0000000-0000-4000-8000-000000000002';
@@ -401,35 +425,32 @@ begin
   select array_agg(r ->> 'user_id') into ids
     from jsonb_array_elements(public.get_global_leaderboard('ALL', 100) -> 'rows') r;
   perform expect(not ('a0000000-0000-4000-8000-000000000002' = any(coalesce(ids, '{}'))),
-    'a player who opted out is excluded from the leaderboard');
+    'a player who opts out is removed from the leaderboard');
 
   update public.profile_privacy_settings
      set show_on_leaderboard = true
    where profile_id = 'a0000000-0000-4000-8000-000000000002';
 end $$;
 
-\echo '── the leaderboard counts only finalised games ──'
+\echo '── opting in does not widen anything else ──'
 do $$
-declare admin uuid := 'a0000000-0000-4000-8000-000000000001';
-        before_net bigint; after_net bigint; t public.poker_tables;
+declare stranger uuid := 'a0000000-0000-4000-8000-000000000007'; p jsonb;
 begin
-  perform test_as(admin);
-  select (r ->> 'net_agorot')::bigint into before_net
-    from jsonb_array_elements(public.get_global_leaderboard('ALL', 100) -> 'rows') r
-   where r ->> 'user_id' = admin::text;
+  insert into auth.users (id, email, raw_user_meta_data)
+  values (stranger, 'nobody@example.com', '{"display_name":"עובר אורח"}')
+  on conflict (id) do nothing;
 
-  -- An open table with real buy-ins must not move anyone's rank.
-  t := public.create_poker_table('משחק פתוח', current_date, now(),
-         now() + interval '3 hours', 5000, 500, 6, 'AUTO_JOIN', 'OPEN', 'ADMIN_COUNT', true);
-  perform public.set_table_status(t.id, 'ACTIVE');
-  perform public.admin_add_buyin((select id from public.table_players where table_id = t.id));
+  -- אילן is on the board, so a stranger may see the same aggregates it shows...
+  perform test_as(stranger);
+  p := public.get_public_profile('a0000000-0000-4000-8000-000000000001');
+  perform expect((p ->> 'stats_visible')::boolean,
+    'opting into the leaderboard makes those aggregates public');
 
-  select (r ->> 'net_agorot')::bigint into after_net
-    from jsonb_array_elements(public.get_global_leaderboard('ALL', 100) -> 'rows') r
-   where r ->> 'user_id' = admin::text;
-
-  perform expect(before_net is not distinct from after_net,
-    'an unfinished game does not affect the leaderboard');
+  -- ...but never the per-game detail, which has its own switch.
+  perform expect(not (p ->> 'history_visible')::boolean,
+    'the leaderboard opt-in does not expose per-game history');
+  perform expect(not (p::text ilike '%@example.com%'),
+    'no email leaks to a stranger');
 end $$;
 
 \echo '── public profiles ──'
@@ -516,7 +537,7 @@ begin
 
   perform test_as(target);
   update public.profile_privacy_settings
-     set show_on_leaderboard = true, share_stats_with_table_members = true
+     set share_stats_with_table_members = true
    where profile_id = target;
 end $$;
 
