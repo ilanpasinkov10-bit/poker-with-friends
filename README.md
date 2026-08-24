@@ -158,10 +158,20 @@ npm run dev        # development server
 npm run build      # production build
 npm run lint       # ESLint
 npm run typecheck  # tsc --noEmit
-npm test           # Vitest
+npm test           # Vitest — domain logic
+npm run test:db    # migrations + database guarantees (needs local PostgreSQL)
 ```
 
 ## Tests
+
+`npm run test:db` applies every migration to a throwaway PostgreSQL instance and
+asserts the guarantees the app depends on, so a migration change cannot quietly
+break them: that a player can never approve their own rebuy, that approving the
+same request twice leaves the ledger untouched, that the entry cap holds, that
+`COMPLETED` is unreachable without finalising, that a chip shortfall and a
+settlement plan which does not resolve every balance are both rejected, that
+profit and loss sum to exactly zero, that a player at a `PRIVATE` table sees
+only their own ledger rows, and that clients cannot write to any table directly.
 
 The domain layer is pure and directly tested: chip/cash conversion and the
 rounding partition, buy-in economics, maximum-entry enforcement, profit/loss,

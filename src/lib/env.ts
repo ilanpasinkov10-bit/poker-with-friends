@@ -5,30 +5,49 @@ import { z } from 'zod';
  * load, so that `next build` succeeds on a machine that has no Supabase
  * project configured yet. Anything that actually talks to Supabase fails with
  * an explicit message instead of a confusing runtime error.
+ *
+ * Supabase renamed its API keys: the browser key is now the *publishable* key
+ * (`sb_publishable_…`) and the privileged one is the *secret* key
+ * (`sb_secret_…`). Both namings are accepted so an older project using the
+ * legacy `anon` / `service_role` JWTs keeps working.
+ *
+ * NEXT_PUBLIC_* variables must be referenced statically for Next to inline
+ * them into the client bundle, which is why both names are spelled out below
+ * rather than looked up dynamically.
  */
 
 const publicSchema = z.object({
   NEXT_PUBLIC_SUPABASE_URL: z.string().url('NEXT_PUBLIC_SUPABASE_URL must be a valid URL'),
-  NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(20, 'NEXT_PUBLIC_SUPABASE_ANON_KEY is missing'),
+  publishableKey: z
+    .string()
+    .min(20, 'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY (or NEXT_PUBLIC_SUPABASE_ANON_KEY) is missing'),
 });
 
-export type PublicEnv = z.infer<typeof publicSchema>;
+export interface PublicEnv {
+  NEXT_PUBLIC_SUPABASE_URL: string;
+  /** The browser-safe key: publishable key, or legacy anon key. */
+  publishableKey: string;
+}
 
 let cachedPublic: PublicEnv | null = null;
 
 export function publicEnv(): PublicEnv {
   if (cachedPublic) return cachedPublic;
+
   const parsed = publicSchema.safeParse({
-    // These must be referenced statically so Next can inline them client-side.
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
-    NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    publishableKey:
+      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
   });
+
   if (!parsed.success) {
     throw new Error(
-      `Supabase is not configured. ${parsed.error.issues.map((i) => i.message).join('; ')}. ` +
+      `Supabase is not configured. ${parsed.error.issues.map((issue) => issue.message).join('; ')}. ` +
         'Copy .env.example to .env.local and fill in your project values (see docs/SETUP.md).',
     );
   }
+
   cachedPublic = parsed.data;
   return cachedPublic;
 }
@@ -42,11 +61,17 @@ export function isSupabaseConfigured(): boolean {
   }
 }
 
-/** Server-only. Never import this from a client component. */
-export function serviceRoleKey(): string {
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+/**
+ * Server-only privileged key. Bypasses RLS, so it must never be imported into
+ * a client component or prefixed with NEXT_PUBLIC_.
+ */
+export function secretKey(): string {
+  const key = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!key || key.length < 20) {
-    throw new Error('SUPABASE_SERVICE_ROLE_KEY is not configured (server-only variable).');
+    throw new Error(
+      'SUPABASE_SECRET_KEY (or SUPABASE_SERVICE_ROLE_KEY) is not configured. ' +
+        'This is a server-only variable and must never be exposed to the browser.',
+    );
   }
   return key;
 }
