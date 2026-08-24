@@ -11,6 +11,7 @@
  * rather than numbers someone typed in.
  */
 import { computeFinalResults, type PlayerLedgerTotals } from '@/lib/domain/chips';
+import { computePotTotals, summariseCashOut } from '@/lib/domain/participation';
 import { computeSettlement } from '@/lib/domain/settlement';
 import type { CompletedGameRecord } from '@/lib/domain/stats';
 import type { PendingRequestView, PlayerView, TableViewModel } from '@/lib/data/table';
@@ -87,7 +88,7 @@ function seatToPlayerView(
   seat: SeatSpec,
   overrides: Partial<PlayerView> = {},
 ): PlayerView {
-  return {
+  const base: PlayerView = {
     id: seat.id,
     userId: seat.userId,
     displayName: seat.name,
@@ -103,12 +104,44 @@ function seatToPlayerView(
     submittedChips: null,
     approvedChips: null,
     hasFinancials: true,
+    cashOut: null,
     lastReversibleTxId: `tx-${seat.id}`,
     ...overrides,
   };
+  // Derived exactly as the real loader derives it, so the gallery cannot show
+  // a cash-out summary the production rules would refuse.
+  return { ...base, cashOut: summariseCashOut(base, ECONOMICS) };
 }
 
 export const PLAYERS: PlayerView[] = SEATS.map((seat) => seatToPlayerView(seat));
+
+/**
+ * Seats that cashed out mid-game, for the "עזבו את השולחן" section: one player
+ * down on the night, one up, and one whose leave never completed — the count is
+ * only submitted, so no summary may be shown.
+ */
+export const LEFT_PLAYERS: PlayerView[] = [
+  seatToPlayerView(SEATS[3]!, {
+    leftAt: '2026-08-23T20:55:00.000Z',
+    submittedChips: 1_200,
+    approvedChips: 1_200,
+  }),
+  seatToPlayerView(SEATS[5]!, {
+    leftAt: '2026-08-23T21:10:00.000Z',
+    submittedChips: 2_400,
+    approvedChips: 2_400,
+  }),
+  seatToPlayerView(SEATS[4]!, {
+    leftAt: '2026-08-23T21:18:00.000Z',
+    submittedChips: 900,
+    approvedChips: null,
+  }),
+];
+
+/** The seats still playing once LEFT_PLAYERS have gone. */
+export const SEATED_PLAYERS: PlayerView[] = PLAYERS.filter(
+  (p) => !LEFT_PLAYERS.some((left) => left.id === p.id),
+);
 
 /** Someone waiting for the admin to let them in. */
 export const PENDING_PLAYER: PlayerView = {
@@ -178,13 +211,16 @@ export function makeTable(overrides: Partial<PokerTableRow> = {}): PokerTableRow
 
 function totalsFor(players: PlayerView[]): TableViewModel['totals'] {
   const effective = (player: PlayerView) => player.approvedChips ?? player.submittedChips;
+  const pot = computePotTotals(players);
   return {
     playerCount: players.length,
     buyInCount: players.reduce((sum, p) => sum + p.buyInCount, 0),
-    potAgorot: players.reduce((sum, p) => sum + p.totalPaidAgorot, 0),
+    potAgorot: pot.potAgorot,
     chipsIssued: players.reduce((sum, p) => sum + p.chipsIssued, 0),
     chipsCounted: players.reduce((sum, p) => sum + (effective(p) ?? 0), 0),
     playersWithCount: players.filter((p) => effective(p) !== null).length,
+    cashedOutAgorot: pot.cashedOutAgorot,
+    activePotAgorot: pot.activePotAgorot,
   };
 }
 

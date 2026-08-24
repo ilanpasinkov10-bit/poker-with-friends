@@ -21,6 +21,41 @@ export interface PlayerFinalResult extends PlayerLedgerTotals {
 }
 
 /**
+ * The value of a chip stack, in agorot, floored to the whole agora.
+ *
+ * This is the single conversion in the app. It is deliberately the *floor*
+ * rather than a round, because it is the exact first step of
+ * `computeFinalResults` (and of `public.compute_final_rows` in the database):
+ * everyone is credited the floor of their exact value, and only afterwards are
+ * the few leftover agorot handed out by largest remainder so the settlement
+ * balances to zero.
+ *
+ * Using it everywhere means a player sees the same number in the leave dialog,
+ * on their "left the table" card, in the final settlement and in their
+ * profit/loss history. The only figure it cannot know in advance is whether
+ * this player is one of the few who receive a single leftover agora, which is
+ * decided at finalization from everyone's counts together.
+ */
+export function chipsToAgorot(chips: number, economics: TableEconomics): number {
+  const { buyInAgorot, chipsPerBuyIn } = assertEconomics(economics);
+  if (!Number.isInteger(chips) || chips < 0) {
+    throw new Error('chips must be a non-negative integer');
+  }
+  return assertSafeAgorot(Math.floor((chips * buyInAgorot) / chipsPerBuyIn), 'chipValueAgorot');
+}
+
+function assertEconomics(economics: TableEconomics): TableEconomics {
+  const { buyInAgorot, chipsPerBuyIn } = economics;
+  if (!Number.isInteger(buyInAgorot) || buyInAgorot <= 0) {
+    throw new Error('buyInAgorot must be a positive integer');
+  }
+  if (!Number.isInteger(chipsPerBuyIn) || chipsPerBuyIn <= 0) {
+    throw new Error('chipsPerBuyIn must be a positive integer');
+  }
+  return economics;
+}
+
+/**
  * Converts each player's final chip stack back into money.
  *
  * The naive `round(chips / chipsPerBuyIn * buyIn)` per player can lose or
@@ -38,22 +73,14 @@ export function computeFinalResults(
   players: readonly PlayerLedgerTotals[],
   economics: TableEconomics,
 ): PlayerFinalResult[] {
-  const { buyInAgorot, chipsPerBuyIn } = economics;
-  if (!Number.isInteger(buyInAgorot) || buyInAgorot <= 0) {
-    throw new Error('buyInAgorot must be a positive integer');
-  }
-  if (!Number.isInteger(chipsPerBuyIn) || chipsPerBuyIn <= 0) {
-    throw new Error('chipsPerBuyIn must be a positive integer');
-  }
+  const { buyInAgorot, chipsPerBuyIn } = assertEconomics(economics);
 
-  const scored = players.map((p) => {
-    const exact = p.finalChips * buyInAgorot;
-    return {
-      player: p,
-      floorValue: Math.floor(exact / chipsPerBuyIn),
-      remainder: exact % chipsPerBuyIn,
-    };
-  });
+  const scored = players.map((p) => ({
+    player: p,
+    // The same conversion the leave dialog and the "left the table" card show.
+    floorValue: chipsToAgorot(p.finalChips, economics),
+    remainder: (p.finalChips * buyInAgorot) % chipsPerBuyIn,
+  }));
 
   const totalPot = players.reduce((sum, p) => sum + p.totalPaidAgorot, 0);
   const floorSum = scored.reduce((sum, s) => sum + s.floorValue, 0);

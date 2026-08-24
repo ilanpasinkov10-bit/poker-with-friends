@@ -108,7 +108,16 @@ function LiveSection({ model }: { model: TableViewModel }) {
           <div className="grid grid-cols-2 gap-2">
             <Stat label="שחקנים" value={totals.playerCount} sub={playersWord(totals.playerCount)} />
             <Stat label="כניסות" value={totals.buyInCount} sub={buyInsWord(totals.buyInCount)} />
-            <Stat label="בקופה" value={formatMoney(totals.potAgorot)} tone="brand" />
+            <Stat
+              label="בקופה"
+              value={formatMoney(totals.activePotAgorot)}
+              tone="brand"
+              sub={
+                totals.cashedOutAgorot > 0
+                  ? `מתוך ${formatMoney(totals.potAgorot)} · נפדו ${formatMoney(totals.cashedOutAgorot)}`
+                  : undefined
+              }
+            />
             <Stat label="ז׳יטונים בשולחן" value={formatChips(totals.chipsIssued)} />
           </div>
 
@@ -171,7 +180,13 @@ function LiveSection({ model }: { model: TableViewModel }) {
         {leftPlayers.length > 0 ? (
           <div className="mt-5">
             <SectionTitle
-              action={<span className="text-xs text-ink-faint">הכסף שלהם נשאר בקופה</span>}
+              action={
+                <span className="text-xs text-ink-faint">
+                  {model.canSeeEveryonesMoney && totals.cashedOutAgorot > 0
+                    ? `נפדו ${formatMoney(totals.cashedOutAgorot)}`
+                    : 'הכניסות שלהם נשארות בהתחשבנות'}
+                </span>
+              }
             >
               עזבו את השולחן
             </SectionTitle>
