@@ -53,6 +53,7 @@ interface SeatSpec {
   userId: string;
   avatarUrl: string | null;
   isAdmin: boolean;
+  isGuest?: boolean;
 }
 
 /**
@@ -63,7 +64,7 @@ const SEATS: SeatSpec[] = [
   { id: 'seat-ilan', name: 'אילן', buyIns: 4, finalChips: 3000, userId: ADMIN_USER_ID, avatarUrl: AVATARS.ilan, isAdmin: true },
   { id: 'seat-shay', name: 'שי', buyIns: 3, finalChips: 2000, userId: 'user-shay', avatarUrl: AVATARS.shay, isAdmin: false },
   { id: 'seat-daniel', name: 'דניאל', buyIns: 5, finalChips: 1700, userId: PLAYER_USER_ID, avatarUrl: null, isAdmin: false },
-  { id: 'seat-roy', name: 'רועי', buyIns: 3, finalChips: 800, userId: 'user-roy', avatarUrl: null, isAdmin: false },
+  { id: 'seat-roy', name: 'רועי', buyIns: 3, finalChips: 800, userId: 'user-roy', avatarUrl: null, isAdmin: false, isGuest: true },
   { id: 'seat-michal', name: 'מיכל', buyIns: 2, finalChips: 1500, userId: 'user-michal', avatarUrl: AVATARS.michal, isAdmin: false },
   { id: 'seat-noam', name: 'נועם', buyIns: 3, finalChips: 1000, userId: 'user-noam', avatarUrl: null, isAdmin: false },
 ];
@@ -93,6 +94,7 @@ function seatToPlayerView(
     status: 'ACTIVE',
     isAdmin: seat.isAdmin,
     avatarUrl: seat.avatarUrl,
+    isGuest: seat.isGuest ?? false,
     joinedAt: '2026-08-23T18:05:00.000Z',
     buyInCount: seat.buyIns,
     totalPaidAgorot: seat.buyIns * ECONOMICS.buyInAgorot,
@@ -221,6 +223,9 @@ export function makeModel(options: ModelOptions = {}): TableViewModel {
     status,
     player_visibility: visibility,
     counting_mode: countingMode,
+    // A table that never started has no start timestamp — which is exactly
+    // what gates the delete action.
+    started_at: status === 'WAITING' ? null : '2026-08-23T18:04:00.000Z',
     counting_started_at: status === 'COUNTING' ? '2026-08-23T21:30:00.000Z' : null,
     completed_at: status === 'COMPLETED' ? '2026-08-23T21:55:00.000Z' : null,
   });
@@ -330,6 +335,7 @@ export const PRIVACY_SETTINGS: ProfilePrivacyRow = {
   profile_id: ADMIN_USER_ID,
   share_stats_with_table_members: true,
   share_detailed_history: false,
+  show_on_leaderboard: false,
   updated_at: '2026-08-23T10:00:00.000Z',
 };
 
@@ -340,6 +346,17 @@ export const LEADERBOARD: LeaderboardRow[] = [
   { key: 'user-michal', display_name: 'מיכל', user_id: 'user-michal', games_played: 11, net_agorot: 4_500, total_buy_ins: 24, winning_games: 6, best_result_agorot: 9_000 },
   { key: 'user-roy', display_name: 'רועי', user_id: 'user-roy', games_played: 20, net_agorot: -25_000, total_buy_ins: 72, winning_games: 7, best_result_agorot: 11_000 },
   { key: 'user-noam', display_name: 'נועם', user_id: 'user-noam', games_played: 8, net_agorot: -31_500, total_buy_ins: 33, winning_games: 2, best_result_agorot: 3_000 },
+];
+
+import type { LeaderboardEntry } from '@/lib/domain/leaderboard';
+
+/** Global ranking fixture — registered users only, guests absent by design. */
+export const GLOBAL_LEADERBOARD: LeaderboardEntry[] = [
+  { user_id: 'user-shay', display_name: 'שי', avatar_url: AVATARS.shay, games_played: 22, net_agorot: 425_000, total_buy_ins: 61, total_invested_agorot: 305_000, best_result_agorot: 24_000, winning_games: 14, average_agorot: 19_318 },
+  { user_id: 'user-ilan', display_name: 'אילן', avatar_url: AVATARS.ilan, games_played: 24, net_agorot: 43_000, total_buy_ins: 68, total_invested_agorot: 340_000, best_result_agorot: 21_000, winning_games: 14, average_agorot: 1_791 },
+  { user_id: 'user-michal', display_name: 'מיכל', avatar_url: AVATARS.michal, games_played: 11, net_agorot: 0, total_buy_ins: 24, total_invested_agorot: 120_000, best_result_agorot: 9_000, winning_games: 5, average_agorot: 0 },
+  { user_id: 'user-daniel', display_name: 'דניאל', avatar_url: null, games_played: 19, net_agorot: -12_000, total_buy_ins: 58, total_invested_agorot: 290_000, best_result_agorot: 16_500, winning_games: 9, average_agorot: -631 },
+  { user_id: 'user-noam', display_name: 'נועם', avatar_url: null, games_played: 8, net_agorot: -31_500, total_buy_ins: 33, total_invested_agorot: 165_000, best_result_agorot: 3_000, winning_games: 2, average_agorot: -3_937 },
 ];
 
 export const JOIN_PREVIEW = {

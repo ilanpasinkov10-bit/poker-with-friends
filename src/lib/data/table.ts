@@ -19,6 +19,8 @@ export interface PlayerView {
   status: TablePlayerRow['status'];
   isAdmin: boolean;
   avatarUrl: string | null;
+  /** True for a player using an anonymous (guest) session. */
+  isGuest: boolean;
   joinedAt: string;
   buyInCount: number;
   totalPaidAgorot: number;
@@ -111,10 +113,11 @@ export async function loadTableView(
   const playerRows = (playersRes.data ?? []) as TablePlayerRow[];
   const userIds = [...new Set(playerRows.map((p) => p.user_id).filter((id): id is string => !!id))];
   const { data: profileRows } = userIds.length
-    ? await supabase.from('profiles').select('id, avatar_url').in('id', userIds)
+    ? await supabase.from('profiles').select('id, avatar_url, is_guest').in('id', userIds)
     : { data: [] };
 
   const avatarByUser = new Map((profileRows ?? []).map((p) => [p.id, p.avatar_url]));
+  const guestByUser = new Map((profileRows ?? []).map((p) => [p.id, p.is_guest]));
   const totalsById = new Map(
     (totalsRes.data ?? []).map((t) => [t.table_player_id, t] as const),
   );
@@ -142,6 +145,7 @@ export async function loadTableView(
       status: row.status,
       isAdmin: row.user_id === table.owner_id,
       avatarUrl: row.user_id ? (avatarByUser.get(row.user_id) ?? null) : null,
+      isGuest: row.user_id ? (guestByUser.get(row.user_id) ?? false) : false,
       joinedAt: row.joined_at,
       buyInCount: totals?.buy_in_count ?? 0,
       totalPaidAgorot: totals?.total_paid_agorot ?? 0,

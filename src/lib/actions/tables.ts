@@ -160,6 +160,25 @@ const settingsSchema = z.object({
   countingMode: z.enum(['ADMIN_COUNT', 'SELF_COUNT']).optional(),
 });
 
+/**
+ * Permanently deletes a table that never started.
+ *
+ * Every rule is enforced by `delete_poker_table` under a row lock — owner only,
+ * WAITING only, never once results exist. This wrapper adds nothing but the
+ * Hebrew error mapping and cache invalidation.
+ */
+export async function deleteTableAction(tableId: string): Promise<ActionResult> {
+  return guard(async () => {
+    const supabase = await createClient();
+    const { error } = await supabase.rpc('delete_poker_table', { p_table: tableId });
+    if (error) throw error;
+
+    revalidatePath('/tables');
+    revalidatePath('/');
+    return ok();
+  });
+}
+
 export async function updateTableSettingsAction(
   tableId: string,
   input: z.input<typeof settingsSchema>,

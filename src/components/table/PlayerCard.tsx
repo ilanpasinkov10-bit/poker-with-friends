@@ -15,6 +15,7 @@ export function PlayerCard({
   maxBuyIns,
   actions,
   footer,
+  onOpenProfile,
 }: {
   player: PlayerView;
   showMoney: boolean;
@@ -22,6 +23,7 @@ export function PlayerCard({
   maxBuyIns: number;
   actions?: React.ReactNode;
   footer?: React.ReactNode;
+  onOpenProfile?: (userId: string) => void;
 }) {
   const maxedOut = player.buyInCount >= maxBuyIns;
 
@@ -35,9 +37,14 @@ export function PlayerCard({
       <div className="flex items-center gap-3">
         <Avatar name={player.displayName} src={player.avatarUrl} ring={isMe} />
 
-        <div className="min-w-0 flex-1">
+        <ProfileTrigger player={player} onOpenProfile={onOpenProfile}>
           <div className="flex items-center gap-2">
             <p className="truncate font-bold text-ink">{player.displayName}</p>
+            {player.isGuest ? (
+              <Badge tone="neutral" className="px-2 py-0.5 text-[0.65rem]">
+                אורח
+              </Badge>
+            ) : null}
             {player.isAdmin ? (
               <Badge tone="brand" className="px-2 py-0.5 text-[0.65rem]">
                 מנהל שולחן
@@ -67,12 +74,41 @@ export function PlayerCard({
           {showMoney && maxedOut ? (
             <p className="mt-1 text-[0.7rem] font-semibold text-warn">הגיע למקסימום הכניסות</p>
           ) : null}
-        </div>
+        </ProfileTrigger>
 
         {actions ? <div className="flex shrink-0 items-center gap-1.5">{actions}</div> : null}
       </div>
 
       {footer ? <div className="mt-3 border-t border-line-soft pt-3">{footer}</div> : null}
     </li>
+  );
+}
+
+/**
+ * The name block opens the player's profile when a handler is supplied and the
+ * player has an identity to look up. Falls back to plain markup otherwise, so
+ * the card never renders a button that would do nothing.
+ */
+function ProfileTrigger({
+  player,
+  onOpenProfile,
+  children,
+}: {
+  player: PlayerView;
+  onOpenProfile?: (userId: string) => void;
+  children: React.ReactNode;
+}) {
+  if (!onOpenProfile || !player.userId) {
+    return <div className="min-w-0 flex-1">{children}</div>;
+  }
+  return (
+    <button
+      type="button"
+      onClick={() => onOpenProfile(player.userId!)}
+      aria-label={`הצג את הפרופיל של ${player.displayName}`}
+      className="min-w-0 flex-1 rounded-lg text-start focus-visible:outline-2 focus-visible:outline-brand"
+    >
+      {children}
+    </button>
   );
 }

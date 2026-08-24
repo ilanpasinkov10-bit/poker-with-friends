@@ -23,12 +23,14 @@ export function ProfileSettingsForm({
   const [name, setName] = useState(displayName);
   const [shareStats, setShareStats] = useState(privacy.share_stats_with_table_members);
   const [shareHistory, setShareHistory] = useState(privacy.share_detailed_history);
+  const [onLeaderboard, setOnLeaderboard] = useState(privacy.show_on_leaderboard);
 
-  const savePrivacy = (next: { stats?: boolean; history?: boolean }) =>
+  const savePrivacy = (next: { stats?: boolean; history?: boolean; leaderboard?: boolean }) =>
     startTransition(async () => {
       const payload = {
         shareStatsWithTableMembers: next.stats ?? shareStats,
         shareDetailedHistory: next.history ?? shareHistory,
+        showOnLeaderboard: next.leaderboard ?? onLeaderboard,
       };
       const result = await updatePrivacyAction(payload);
       if (!result.ok) {
@@ -37,6 +39,7 @@ export function ProfileSettingsForm({
       }
       setShareStats(payload.shareStatsWithTableMembers);
       setShareHistory(payload.shareDetailedHistory);
+      setOnLeaderboard(payload.showOnLeaderboard);
       toast.success('הגדרות הפרטיות נשמרו');
     });
 
@@ -79,6 +82,12 @@ export function ProfileSettingsForm({
             onChange={(value) => savePrivacy({ stats: value })}
             label="שיתוף סטטיסטיקות עם שחקנים בשולחן"
             description="שחקנים ששיחקו איתכם יוכלו לראות מספר משחקים ומאזן כללי"
+          />
+          <Switch
+            checked={onLeaderboard}
+            onChange={(value) => savePrivacy({ leaderboard: value })}
+            label="הצג אותי בלוח ההישגים"
+            description="כבוי כברירת מחדל. בהפעלה, השם, התמונה והמאזן המצטבר שלכם יוצגו לכל משתמש רשום"
           />
           <Switch
             checked={shareHistory}

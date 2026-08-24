@@ -4,6 +4,9 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { guard, ok, type ActionResult } from '@/lib/action-result';
 import { AppError } from '@/lib/errors';
+import { loadPublicProfile } from '@/lib/data/leaderboard';
+import type { PublicProfile } from '@/lib/domain/leaderboard';
+import { isUuid } from '@/lib/domain/ids';
 import { createClient } from '@/lib/supabase/server';
 
 const nameSchema = z.string().trim().min(1, 'צריך להזין שם').max(40, 'השם ארוך מדי');
@@ -21,6 +24,7 @@ export async function updateDisplayNameAction(displayName: string): Promise<Acti
     if (error) throw error;
 
     revalidatePath('/profile', 'layout');
+    revalidatePath('/leaderboard');
     return ok();
   });
 }
@@ -90,6 +94,7 @@ export async function removeAvatarAction(): Promise<ActionResult> {
     }
 
     revalidatePath('/profile', 'layout');
+    revalidatePath('/leaderboard');
     return ok();
   });
 }
@@ -101,9 +106,25 @@ function extractAvatarPath(url: string | null): string | null {
   return index === -1 ? null : decodeURIComponent(url.slice(index + marker.length));
 }
 
+/**
+ * Fetches another player's public profile. All filtering happens inside
+ * `get_public_profile`, so this cannot return more than the viewer is allowed.
+ */
+export async function fetchPublicProfileAction(
+  userId: string,
+): Promise<ActionResult<PublicProfile | null>> {
+  return guard(async () => {
+    if (!isUuid(userId)) throw new AppError('NOT_FOUND');
+    const profile = await loadPublicProfile(userId);
+    if (!profile) throw new AppError('PROFILE_PRIVATE');
+    return ok(profile);
+  });
+}
+
 const privacySchema = z.object({
   shareStatsWithTableMembers: z.boolean(),
   shareDetailedHistory: z.boolean(),
+  showOnLeaderboard: z.boolean(),
 });
 
 export async function updatePrivacyAction(
@@ -122,12 +143,14 @@ export async function updatePrivacyAction(
         profile_id: user.id,
         share_stats_with_table_members: values.shareStatsWithTableMembers,
         share_detailed_history: values.shareDetailedHistory,
+        show_on_leaderboard: values.showOnLeaderboard,
       },
       { onConflict: 'profile_id' },
     );
     if (error) throw error;
 
     revalidatePath('/profile', 'layout');
+    revalidatePath('/leaderboard');
     return ok();
   });
 }

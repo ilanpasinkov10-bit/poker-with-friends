@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   canAdminAddBuyIn,
+  canDeleteTable,
   canApproveRebuy,
   canRequestRebuy,
   canTransition,
@@ -140,5 +141,31 @@ describe('finalisation readiness', () => {
       'WRONG_STATUS',
     );
     expect(finalizeReadiness(player, counting, []).reason).toBe('NOT_ADMIN');
+  });
+});
+
+describe('deleting a table', () => {
+  const waiting = { status: 'WAITING' as const, startedAt: null };
+
+  it('is allowed for the owner before the game begins', () => {
+    expect(canDeleteTable(admin, waiting)).toBe(true);
+  });
+
+  it('is refused for anyone who is not the table admin', () => {
+    expect(canDeleteTable(player, waiting)).toBe(false);
+  });
+
+  it('is refused once the game has started', () => {
+    expect(canDeleteTable(admin, { status: 'ACTIVE', startedAt: '2026-08-24T18:00:00Z' })).toBe(false);
+    expect(canDeleteTable(admin, { status: 'COUNTING', startedAt: '2026-08-24T18:00:00Z' })).toBe(false);
+    expect(canDeleteTable(admin, { status: 'COMPLETED', startedAt: '2026-08-24T18:00:00Z' })).toBe(false);
+  });
+
+  it('is refused for a table that is WAITING but was previously started', () => {
+    expect(canDeleteTable(admin, { status: 'WAITING', startedAt: '2026-08-24T18:00:00Z' })).toBe(false);
+  });
+
+  it('is refused whenever results already exist', () => {
+    expect(canDeleteTable(admin, { ...waiting, hasResults: true })).toBe(false);
   });
 });

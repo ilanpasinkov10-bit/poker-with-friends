@@ -104,6 +104,7 @@ waiting for success before the next:
 5. `supabase/migrations/0005_realtime_storage.sql`
 6. `supabase/migrations/0006_groups.sql`
 7. `supabase/migrations/0007_fix_function_grants.sql`
+8. `supabase/migrations/0008_delete_profiles_leaderboard.sql`
 
 Order matters: later files reference objects created by earlier ones.
 
@@ -118,6 +119,7 @@ Order matters: later files reference objects created by earlier ones.
 | `0005` | **Realtime** publication and **Storage** bucket + policies |
 | `0006` | Recurring groups |
 | `0007` | Grants `compute_final_rows` to `authenticated`, and self-checks that every RPC the app calls is executable |
+| `0008` | Table deletion, public profiles, the global leaderboard, and the opt-in `show_on_leaderboard` privacy switch (defaults to off) |
 
 Realtime, Storage and RLS need no dashboard clicks — they are configured by
 `0004` and `0005`.

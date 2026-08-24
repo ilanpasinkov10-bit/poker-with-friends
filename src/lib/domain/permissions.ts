@@ -68,6 +68,21 @@ export function canAdminAddBuyIn(
   return player.buyInCount < table.maxBuyIns;
 }
 
+/**
+ * A table may be deleted only before it has begun. Mirrors
+ * `delete_poker_table`, which enforces the same rule under a row lock — this
+ * exists so the UI can hide an action that would be refused.
+ */
+export function canDeleteTable(
+  actor: ActorContext,
+  table: { status: TableStatus; startedAt: string | null; hasResults?: boolean },
+): boolean {
+  if (!actor.isTableAdmin) return false;
+  if (table.status !== 'WAITING') return false;
+  if (table.startedAt !== null) return false;
+  return table.hasResults !== true;
+}
+
 const ALLOWED_TRANSITIONS: Record<TableStatus, TableStatus[]> = {
   WAITING: ['ACTIVE', 'CANCELLED'],
   ACTIVE: ['COUNTING', 'CANCELLED'],

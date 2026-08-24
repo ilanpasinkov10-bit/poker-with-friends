@@ -24,6 +24,8 @@ export type ProfilePrivacyRow = {
   profile_id: string;
   share_stats_with_table_members: boolean;
   share_detailed_history: boolean;
+  /** Whether this player appears on the global leaderboard. */
+  show_on_leaderboard: boolean;
   updated_at: string;
 }
 
@@ -262,6 +264,12 @@ export type Database = {
       };
       mark_settlement_paid: { Args: { p_settlement: string; p_paid: boolean }; Returns: undefined };
       get_or_create_poker_group: { Args: { p_name: string }; Returns: string };
+      delete_poker_table: { Args: { p_table: string }; Returns: undefined };
+      get_global_leaderboard: {
+        Args: { p_period?: string; p_limit?: number };
+        Returns: unknown;
+      };
+      get_public_profile: { Args: { p_user: string }; Returns: unknown };
       get_table_leaderboard: { Args: { p_table: string }; Returns: unknown };
       get_shared_profile_stats: { Args: { p_user: string }; Returns: unknown };
     };

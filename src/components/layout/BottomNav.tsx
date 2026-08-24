@@ -7,6 +7,7 @@ import { cn } from '@/lib/cn';
 const ITEMS = [
   { href: '/', label: 'בית', icon: '🏠' },
   { href: '/tables', label: 'השולחנות שלי', icon: '🎴' },
+  { href: '/leaderboard', label: 'לוח הישגים', icon: '🏆' },
   { href: '/profile', label: 'הפרופיל', icon: '👤' },
 ] as const;
 
@@ -28,7 +29,7 @@ export function BottomNav() {
                 href={item.href}
                 aria-current={active ? 'page' : undefined}
                 className={cn(
-                  'flex min-h-14 flex-col items-center justify-center gap-0.5 rounded-xl text-[0.7rem] font-semibold transition-colors',
+                  'flex min-h-14 flex-col items-center justify-center gap-0.5 rounded-xl px-1 text-center text-[0.62rem] font-semibold leading-tight transition-colors',
                   active ? 'text-brand-ink' : 'text-ink-faint hover:text-ink-muted',
                 )}
               >
