@@ -4,7 +4,7 @@ import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
 import { Num } from '@/components/ui/Num';
 import { cn } from '@/lib/cn';
-import { formatChips, formatMoney } from '@/lib/format';
+import { formatChips, formatMoney, formatSignedMoney } from '@/lib/format';
 import { buyInsWord } from '@/lib/labels';
 import type { PlayerView } from '@/lib/data/table';
 
@@ -71,7 +71,9 @@ export function PlayerCard({
             <p className="mt-0.5 text-xs text-ink-faint">הנתונים הכספיים מוצגים למנהל השולחן בלבד</p>
           )}
 
-          {showMoney && maxedOut ? (
+          {showMoney && player.cashOut ? <CashOutLines cashOut={player.cashOut} /> : null}
+
+          {showMoney && maxedOut && !player.cashOut ? (
             <p className="mt-1 text-[0.7rem] font-semibold text-warn">הגיע למקסימום הכניסות</p>
           ) : null}
         </ProfileTrigger>
@@ -81,6 +83,36 @@ export function PlayerCard({
 
       {footer ? <div className="mt-3 border-t border-line-soft pt-3">{footer}</div> : null}
     </li>
+  );
+}
+
+/**
+ * What a player took off the table when they left.
+ *
+ * Every number here was persisted by the leave transaction and converted by the
+ * same domain function the settlement uses; this component only formats them.
+ */
+function CashOutLines({ cashOut }: { cashOut: NonNullable<PlayerView['cashOut']> }) {
+  const profit = cashOut.profitLossAgorot >= 0;
+  return (
+    <>
+      <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-ink-muted">
+        <span>
+          עזב עם <Num className="font-semibold text-ink">{formatChips(cashOut.finalChips)}</Num>{' '}
+          ז׳יטונים
+        </span>
+        <span aria-hidden>·</span>
+        <span>
+          שווי <Num className="font-semibold text-ink">{formatMoney(cashOut.finalValueAgorot)}</Num>
+        </span>
+      </p>
+      <p className="mt-0.5 text-xs text-ink-muted">
+        תוצאה:{' '}
+        <Num className={cn('font-bold', profit ? 'text-profit' : 'text-loss')}>
+          {formatSignedMoney(cashOut.profitLossAgorot)}
+        </Num>
+      </p>
+    </>
   );
 }
 

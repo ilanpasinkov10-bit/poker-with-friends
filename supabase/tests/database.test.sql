@@ -1002,5 +1002,69 @@ begin
     'LEAVE_ALREADY_LEFT', 'leaving a second time');
 end $$;
 
+\echo '── the leave transaction persists what the card displays ──'
+do $$
+declare
+  admin uuid := 'a0000000-0000-4000-8000-000000000001';
+  other uuid := 'a0000000-0000-4000-8000-000000000002';
+  t public.poker_tables; seat uuid; seat_admin uuid;
+  row_c public.chip_count_submissions;
+  paid bigint; value_agorot bigint;
+begin
+  perform test_as(admin);
+  -- 5,000 agorot per 500 chips, so 1,200 chips are worth exactly 12,000.
+  t := public.create_poker_table('כרטיס עזיבה', current_date, now(),
+         now() + interval '3 hours', 5000, 500, 6, 'AUTO_JOIN', 'OPEN', 'ADMIN_COUNT', true);
+  select id into seat_admin from public.table_players
+   where table_id = t.id and user_id = admin;
+
+  perform test_as(other);
+  perform public.join_table(t.join_code, 'ליאור');
+  select id into seat from public.table_players where table_id = t.id and user_id = other;
+
+  perform test_as(admin);
+  perform public.set_table_status(t.id, 'ACTIVE');
+  -- Three entries in total: 15,000 agorot in, 1,500 chips out.
+  perform public.admin_add_buyin(seat);
+  perform public.admin_add_buyin(seat);
+  select total_paid_agorot into paid from public.table_player_totals where table_player_id = seat;
+  perform expect(paid = 15000, 'the leaver paid in 15,000 agorot over three entries');
+
+  perform test_as(other);
+  perform public.leave_table(seat, 1200);
+
+  select * into row_c from public.chip_count_submissions where table_player_id = seat;
+  perform expect(row_c.submitted_chips = 1200,
+    'the declared count is stored as the submitted count');
+  perform expect(row_c.approved_chips = 1200,
+    'the declared count is stored as the approved count the card reads');
+  perform expect(row_c.approved_at is not null and row_c.approved_by is not null,
+    'the count is approved by the leave transaction itself');
+  perform expect((select left_at is not null from public.table_players where id = seat),
+    'left_at marks the leave as completed');
+
+  -- The paid-in total is untouched by leaving, so the displayed result is
+  -- stable across refreshes: value 12,000 - paid 15,000 = -3,000 (-30₪).
+  select total_paid_agorot into paid from public.table_player_totals where table_player_id = seat;
+  perform expect(paid = 15000, 'leaving does not disturb the ledger total');
+  value_agorot := (row_c.approved_chips::bigint * t.buy_in_agorot) / t.chips_per_buy_in;
+  perform expect(value_agorot = 12000, 'the stored count converts to 12,000 agorot');
+  perform expect(value_agorot - paid = -3000, 'the realised result is -3,000 agorot');
+
+  -- And finalization credits the leaver that same value, so the card and the
+  -- settlement cannot disagree.
+  perform test_as(admin);
+  perform public.set_table_status(t.id, 'COUNTING');
+  perform public.admin_set_chip_count(seat_admin, 800);
+  perform expect((select final_value_agorot from public.compute_final_rows(t.id, false)
+                   where table_player_id = seat) = value_agorot,
+    'finalization credits the leaver exactly the value shown on their card');
+  perform expect((select profit_loss_agorot from public.compute_final_rows(t.id, false)
+                   where table_player_id = seat) = -3000,
+    'finalization reports the same realised result');
+  perform expect((select sum(profit_loss_agorot) from public.compute_final_rows(t.id, false)) = 0,
+    'the results still sum to zero with a leaver in the game');
+end $$;
+
 \echo ''
 \echo 'All database checks passed.'

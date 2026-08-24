@@ -38,6 +38,8 @@ import {
   HISTORY,
   JOIN_PREVIEW,
   LEADERBOARD,
+  LEFT_PLAYERS,
+  SEATED_PLAYERS,
   PENDING_PLAYER,
   PENDING_REBUYS,
   PLAYERS,
@@ -242,6 +244,17 @@ export const SCREENS: PreviewScreen[] = [
             pendingRequests: PENDING_REBUYS,
           })}
         />
+      </Framed>
+    ),
+  },
+  {
+    id: 'active-left-players',
+    label: 'שחקנים שעזבו',
+    group: 'משחק חי',
+    note: 'רועי ונועם השלימו עזיבה ומוצגת להם ספירה, שווי ותוצאה. מיכל שלחה ספירה שטרם אושרה, ולכן לא מוצג לה פדיון. הקופה מציגה את מה שנשאר במשחק.',
+    render: () => (
+      <Framed title="פוקר של יום חמישי" subtitle="משחק פעיל">
+        <TableScreen model={makeModel({ players: SEATED_PLAYERS, leftPlayers: LEFT_PLAYERS })} />
       </Framed>
     ),
   },

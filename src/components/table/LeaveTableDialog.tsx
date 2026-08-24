@@ -7,6 +7,7 @@ import { Modal } from '@/components/ui/Modal';
 import { Num } from '@/components/ui/Num';
 import { useToast } from '@/components/ui/Toast';
 import { formatChips, formatMoney } from '@/lib/format';
+import { chipsToAgorot } from '@/lib/domain/chips';
 import { leaveTableAction } from '@/lib/actions/players';
 
 /**
@@ -39,8 +40,9 @@ export function LeaveTableDialog({
 
   const chips = Number(value);
   const valid = value !== '' && Number.isInteger(chips) && chips >= 0;
-  // Same conversion the settlement uses, shown so nobody leaves by surprise.
-  const cashOut = valid ? Math.round((chips * buyInAgorot) / chipsPerBuyIn) : null;
+  // The one conversion the whole app uses, so the number previewed here is the
+  // number that will appear on the card after leaving and in the settlement.
+  const cashOut = valid ? chipsToAgorot(chips, { buyInAgorot, chipsPerBuyIn }) : null;
 
   const confirm = () =>
     startTransition(async () => {
