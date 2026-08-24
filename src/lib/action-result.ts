@@ -1,4 +1,4 @@
-import { toHebrewError } from '@/lib/errors';
+import { AppError, toHebrewError } from '@/lib/errors';
 
 export type ActionResult<T = undefined> =
   | { ok: true; data: T }
@@ -12,6 +12,10 @@ export function ok<T>(data?: T): ActionResult<T | undefined> {
 
 export function fail(error: unknown): ActionResult<never> {
   const { code, message } = toHebrewError(error);
+  // Developer context never travels to the client, but it must reach the logs.
+  if (error instanceof AppError && error.detail) {
+    console.error(`[action] ${code}: ${error.detail}`);
+  }
   return { ok: false, code, message };
 }
 

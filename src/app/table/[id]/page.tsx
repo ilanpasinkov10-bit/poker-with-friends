@@ -3,16 +3,15 @@ import { AppBar } from '@/components/layout/AppBar';
 import { PageShell } from '@/components/layout/PageShell';
 import { TableScreen } from '@/components/table/TableScreen';
 import { requireAnyUser } from '@/lib/auth';
+import { isUuid } from '@/lib/domain/ids';
 import { loadTableView } from '@/lib/data/table';
 import { TABLE_STATUS_LABEL } from '@/lib/labels';
 
 export const dynamic = 'force-dynamic';
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 export default async function TablePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  if (!UUID.test(id)) notFound();
+  if (!isUuid(id)) notFound();
 
   const user = await requireAnyUser(`/table/${id}`);
   const model = await loadTableView(id, user.id, user.isAnonymous);

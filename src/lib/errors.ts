@@ -30,15 +30,24 @@ const MESSAGES: Record<string, string> = {
   INVALID_INPUT: 'חלק מהפרטים שהוזנו אינם תקינים',
   NOT_FOUND: 'הפריט המבוקש לא נמצא',
   ANONYMOUS_DISABLED: 'הצטרפות כאורח אינה זמינה כרגע. נסו להתחבר עם חשבון.',
+  RPC_BAD_SHAPE: 'קיבלנו תשובה לא צפויה מהשרת. נסו שוב בעוד רגע.',
+  TABLE_NOT_READABLE: 'השולחן נוצר אך אינו נגיש כרגע. רעננו את הדף ובדקו ב״השולחנות שלי״.',
 };
 
 export const GENERIC_ERROR = 'משהו השתבש. נסו שוב בעוד רגע.';
 
 export class AppError extends Error {
   readonly code: string;
-  constructor(code: string, message?: string) {
+  /**
+   * Developer-facing context. Logged on the server, never shown to the user —
+   * `message` stays the Hebrew string the UI renders.
+   */
+  readonly detail?: string;
+
+  constructor(code: string, message?: string, detail?: string) {
     super(message ?? MESSAGES[code] ?? GENERIC_ERROR);
     this.code = code;
+    this.detail = detail;
     this.name = 'AppError';
   }
 }

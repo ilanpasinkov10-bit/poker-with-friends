@@ -103,6 +103,7 @@ waiting for success before the next:
 4. `supabase/migrations/0004_rls.sql`
 5. `supabase/migrations/0005_realtime_storage.sql`
 6. `supabase/migrations/0006_groups.sql`
+7. `supabase/migrations/0007_fix_function_grants.sql`
 
 Order matters: later files reference objects created by earlier ones.
 
@@ -116,6 +117,7 @@ Order matters: later files reference objects created by earlier ones.
 | `0004` | **RLS** — enables it on every table, revokes client writes, adds all policies |
 | `0005` | **Realtime** publication and **Storage** bucket + policies |
 | `0006` | Recurring groups |
+| `0007` | Grants `compute_final_rows` to `authenticated`, and self-checks that every RPC the app calls is executable |
 
 Realtime, Storage and RLS need no dashboard clicks — they are configured by
 `0004` and `0005`.
