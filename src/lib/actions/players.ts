@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { guard, ok, type ActionResult } from '@/lib/action-result';
+import { AppError } from '@/lib/errors';
 import { createClient } from '@/lib/supabase/server';
 
 const codeSchema = z
@@ -111,12 +112,11 @@ export async function leaveTableAction(
   chips: number,
 ): Promise<ActionResult> {
   return guard(async () => {
-    const value = z
-      .number()
-      .int('יש להזין מספר שלם')
-      .min(0, 'מספר הז׳יטונים לא יכול להיות שלילי')
-      .max(100_000_000)
-      .parse(chips);
+    const parsed = z.number().int().min(0).max(100_000_000).safeParse(chips);
+    if (!parsed.success) {
+      throw new AppError('INVALID_CHIP_COUNT', undefined, `leave_table chips=${String(chips)}`);
+    }
+    const value = parsed.data;
 
     const supabase = await createClient();
     const { error } = await supabase.rpc('leave_table', {

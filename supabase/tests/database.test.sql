@@ -711,5 +711,152 @@ begin
     'the leaver is included in the stored results');
 end $$;
 
+\echo '── guest ownership through the leave RPC ──'
+do $$
+declare
+  admin uuid := 'a0000000-0000-4000-8000-000000000001';
+  guest uuid := 'c0000000-0000-4000-8000-00000000000c';
+  other uuid := 'a0000000-0000-4000-8000-000000000003';
+  t public.poker_tables;
+  seat_guest uuid; seat_admin uuid; seat_other uuid;
+begin
+  -- An anonymous Supabase user: authenticated, but is_guest on the profile.
+  insert into auth.users (id, email, raw_user_meta_data, is_anonymous)
+  values (guest, null, '{"display_name":"אורח"}', true)
+  on conflict (id) do nothing;
+
+  perform expect((select is_guest from public.profiles where id = guest),
+    'an anonymous user gets a guest profile');
+
+  perform test_as(admin);
+  t := public.create_poker_table('שולחן אורחים', current_date, now(),
+         now() + interval '4 hours', 5000, 500, 6, 'AUTO_JOIN', 'OPEN', 'ADMIN_COUNT', true);
+  perform public.set_table_status(t.id, 'ACTIVE');
+
+  perform test_as(guest);
+  perform public.join_table(t.join_code, 'אורח');
+  perform test_as(other);
+  perform public.join_table(t.join_code, 'מיכל');
+
+  select id into seat_guest from public.table_players where table_id = t.id and user_id = guest;
+  select id into seat_admin from public.table_players where table_id = t.id and user_id = admin;
+  select id into seat_other from public.table_players where table_id = t.id and user_id = other;
+
+  -- Every seat starts seated, guest included.
+  perform expect((select count(*) from public.table_players
+                   where table_id = t.id and status = 'ACTIVE' and left_at is null) = 3,
+    'a new guest and a new registered player both start seated');
+
+  -- Ownership is the anonymous uid, so the guest owns their own seat only.
+  perform expect((select user_id from public.table_players where id = seat_guest) = guest,
+    'the guest seat is owned by the anonymous auth user');
+
+  perform test_as(guest);
+  perform expect_error(format('select public.leave_table(%L, 100)', seat_other),
+    'NOT_AUTHORIZED', 'a guest cannot submit another player''s leave');
+  perform expect_error(format('select public.leave_table(%L, -5)', seat_guest),
+    'INVALID_INPUT', 'a negative chip count is refused for a guest too');
+
+  -- The reported failure: a guest leaving their own seat.
+  perform test_as(admin);
+  perform public.admin_add_buyin(seat_guest);   -- two entries: 100₪ / 1,000 chips
+  perform test_as(guest);
+  perform public.leave_table(seat_guest, 300);
+
+  perform expect((select left_at is not null from public.table_players where id = seat_guest),
+    'a guest can leave their own seat');
+  perform expect((select approved_chips from public.chip_count_submissions
+                   where table_player_id = seat_guest) = 300,
+    'the guest''s declared count is recorded');
+  perform expect((select total_paid_agorot from public.table_player_totals
+                   where table_player_id = seat_guest) = 10000,
+    'the guest''s buy-ins survive leaving');
+  perform expect_error(format('select public.leave_table(%L, 300)', seat_guest),
+    'ALREADY_LEFT', 'a guest cannot leave twice');
+
+  -- Everyone else stays seated.
+  perform expect((select count(*) from public.table_players
+                   where table_id = t.id and status = 'ACTIVE' and left_at is null) = 2,
+    'the remaining players stay seated after a guest leaves');
+end $$;
+
+\echo '── pre-feature rows and multiple leavers ──'
+do $$
+declare
+  admin uuid := 'a0000000-0000-4000-8000-000000000001';
+  guest uuid := 'c0000000-0000-4000-8000-00000000000c';
+  other uuid := 'a0000000-0000-4000-8000-000000000003';
+  t uuid; seat_admin uuid; seat_other uuid; seat_guest uuid;
+  issued int; zero_sum bigint; plan jsonb;
+begin
+  select id into t from public.poker_tables where name = 'שולחן אורחים';
+  select id into seat_admin from public.table_players where table_id = t and user_id = admin;
+  select id into seat_other from public.table_players where table_id = t and user_id = other;
+  select id into seat_guest from public.table_players where table_id = t and user_id = guest;
+
+  -- Rows that existed before 0009 added the column carry null, which is the
+  -- seated state. Nothing needs backfilling.
+  perform expect((select count(*) from public.table_players
+                   where table_id = t and left_at is null) = 2,
+    'rows untouched by the leave flow remain seated (null left_at)');
+
+  -- A second player leaves later; the two leaves must not interfere.
+  perform test_as(other);
+  perform public.leave_table(seat_other, 200);
+  perform expect((select count(*) from public.table_players
+                   where table_id = t and status = 'ACTIVE' and left_at is not null) = 2,
+    'two players can leave at different times');
+  perform expect((select approved_chips from public.chip_count_submissions
+                   where table_player_id = seat_guest) = 300,
+    'the first leaver''s count is untouched by the second');
+
+  -- The game still finalises, with both leavers in the settlement.
+  perform test_as(admin);
+  perform public.set_table_status(t, 'COUNTING');
+  select sum(tot.chips_issued) into issued
+    from public.table_players tp
+    join public.table_player_totals tot on tot.table_player_id = tp.id
+   where tp.table_id = t and tp.status = 'ACTIVE';
+  perform public.admin_set_chip_count(seat_admin, issued - 300 - 200);
+
+  with rows_ as (select * from public.compute_final_rows(t, true)),
+       c as (select table_player_id, profit_loss_agorot amt from rows_ where profit_loss_agorot > 0),
+       d as (select table_player_id, -profit_loss_agorot amt from rows_ where profit_loss_agorot < 0)
+  select coalesce(jsonb_agg(jsonb_build_object(
+           'from', d.table_player_id, 'to', c.table_player_id, 'amount', least(c.amt, d.amt))), '[]'::jsonb)
+    into plan from c, d;
+
+  perform public.finalize_game(t, plan);
+  select sum(profit_loss_agorot) into zero_sum from public.game_results where table_id = t;
+  perform expect(zero_sum = 0,
+    'the game settles to zero with two players having left early');
+  perform expect((select count(*) from public.game_results where table_id = t) = 3,
+    'both leavers are in the stored results');
+end $$;
+
+\echo '── direct API attempts cannot bypass ownership ──'
+do $$
+declare t uuid; seat_admin uuid; changed int;
+begin
+  select id into t from public.poker_tables where name = 'שולחן אורחים';
+  select id into seat_admin from public.table_players
+   where table_id = t and user_id = 'a0000000-0000-4000-8000-000000000001';
+
+  set local role authenticated;
+  perform set_config('request.jwt.claims',
+    '{"sub":"c0000000-0000-4000-8000-00000000000c","is_anonymous":true}', true);
+
+  -- Writing left_at straight at the table is refused outright.
+  perform expect_error(
+    format('update public.table_players set left_at = now() where id = %L', seat_admin),
+    'permission denied for table table_players',
+    'a guest cannot stamp left_at directly through the API');
+  perform expect_error(
+    'update public.chip_count_submissions set approved_chips = 99999',
+    'permission denied for table chip_count_submissions',
+    'a guest cannot write a chip count directly');
+  reset role;
+end $$;
+
 \echo ''
 \echo 'All database checks passed.'

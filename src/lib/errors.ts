@@ -37,6 +37,9 @@ const MESSAGES: Record<string, string> = {
   ALREADY_LEFT: 'כבר עזבת את השולחן',
   PLAYER_HAS_LEFT: 'השחקן כבר עזב את השולחן',
   IMAGE_PROCESSING_FAILED: 'לא הצלחנו לעבד את התמונה. נסו לבחור תמונה אחרת מהגלריה.',
+  INVALID_CHIP_COUNT: 'יש להזין מספר ז׳יטונים שלם, אפס או יותר',
+  NOT_A_TABLE_MEMBER: 'אינך משתתף בשולחן הזה',
+  SCHEMA_OUT_OF_DATE: 'הפעולה אינה זמינה כרגע. נסו שוב מאוחר יותר.',
 };
 
 export const GENERIC_ERROR = 'משהו השתבש. נסו שוב בעוד רגע.';
@@ -91,6 +94,17 @@ export function toHebrewError(error: unknown): { code: string; message: string }
   if (/email.*(invalid|valid)/i.test(raw)) {
     return { code: 'BAD_EMAIL', message: 'כתובת האימייל אינה תקינה' };
   }
+  // PostgREST reports a missing function or column when the database is behind
+  // the deployed code. The user gets a neutral message; the log says exactly
+  // which object is missing, which is the only thing that makes it fixable.
+  const code =
+    typeof error === 'object' && error !== null && 'code' in error
+      ? String((error as { code: unknown }).code)
+      : '';
+  if (code === 'PGRST202' || code === 'PGRST204' || /schema cache/i.test(raw)) {
+    return { code: 'SCHEMA_OUT_OF_DATE', message: MESSAGES.SCHEMA_OUT_OF_DATE! };
+  }
+
   if (/Supabase is not configured/i.test(raw)) {
     return { code: 'NOT_CONFIGURED', message: 'האפליקציה עדיין לא חוברה ל‑Supabase. ראו docs/SETUP.md' };
   }

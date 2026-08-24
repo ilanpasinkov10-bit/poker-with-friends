@@ -60,6 +60,13 @@ controls that would fail — if the two ever disagree, the database wins.
 
 ### Leaving a game in progress
 
+**The source of truth for seated-versus-left is `table_players.left_at`** — null
+while seated, a timestamp once the leave flow completed. Nothing else decides
+it: not a chip submission, not an approved count, not a status value. The
+predicates in `src/lib/domain/participation.ts` treat anything that is not a
+real timestamp as *seated*, so a missing column can never mark a playing
+participant as having left.
+
 A player who cashes out keeps `status = 'ACTIVE'` and gains a `left_at`
 timestamp. That is deliberate: their buy-ins are in the pot and their issued
 chips came off the rack, so they are still a participant in that game.
