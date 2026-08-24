@@ -114,7 +114,7 @@ export async function leaveTableAction(
   return guard(async () => {
     const parsed = z.number().int().min(0).max(100_000_000).safeParse(chips);
     if (!parsed.success) {
-      throw new AppError('INVALID_CHIP_COUNT', undefined, `leave_table chips=${String(chips)}`);
+      throw new AppError('LEAVE_INVALID_CHIPS', undefined, `leave_table chips=${String(chips)}`);
     }
     const value = parsed.data;
 

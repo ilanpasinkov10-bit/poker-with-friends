@@ -602,15 +602,15 @@ begin
   -- Nobody else may submit their leave.
   perform test_as(other);
   perform expect_error(format('select public.leave_table(%L, 400)', seat_leaver),
-    'NOT_AUTHORIZED', 'a player cannot make another player leave');
+    'LEAVE_UNAUTHORIZED', 'a player cannot make another player leave');
   perform test_as(admin);
   perform expect_error(format('select public.leave_table(%L, 400)', seat_leaver),
-    'NOT_AUTHORIZED', 'even the admin cannot submit a player''s leave for them');
+    'LEAVE_UNAUTHORIZED', 'even the admin cannot submit a player''s leave for them');
 
   -- A negative count is refused.
   perform test_as(leaver);
   perform expect_error(format('select public.leave_table(%L, -1)', seat_leaver),
-    'INVALID_INPUT', 'a negative chip count is refused');
+    'LEAVE_INVALID_CHIPS', 'a negative chip count is refused');
 
   -- The real thing: cashing out with 800 chips.
   perform public.leave_table(seat_leaver, 800);
@@ -619,7 +619,7 @@ begin
 
   -- Leaving twice is impossible.
   perform expect_error(format('select public.leave_table(%L, 900)', seat_leaver),
-    'ALREADY_LEFT', 'the same player cannot leave twice');
+    'LEAVE_ALREADY_LEFT', 'the same player cannot leave twice');
 
   -- Their money and chips stay in the game.
   select total_paid_agorot into paid_after
@@ -753,9 +753,9 @@ begin
 
   perform test_as(guest);
   perform expect_error(format('select public.leave_table(%L, 100)', seat_other),
-    'NOT_AUTHORIZED', 'a guest cannot submit another player''s leave');
+    'LEAVE_UNAUTHORIZED', 'a guest cannot submit another player''s leave');
   perform expect_error(format('select public.leave_table(%L, -5)', seat_guest),
-    'INVALID_INPUT', 'a negative chip count is refused for a guest too');
+    'LEAVE_INVALID_CHIPS', 'a negative chip count is refused for a guest too');
 
   -- The reported failure: a guest leaving their own seat.
   perform test_as(admin);
@@ -772,7 +772,7 @@ begin
                    where table_player_id = seat_guest) = 10000,
     'the guest''s buy-ins survive leaving');
   perform expect_error(format('select public.leave_table(%L, 300)', seat_guest),
-    'ALREADY_LEFT', 'a guest cannot leave twice');
+    'LEAVE_ALREADY_LEFT', 'a guest cannot leave twice');
 
   -- Everyone else stays seated.
   perform expect((select count(*) from public.table_players
@@ -856,6 +856,150 @@ begin
     'permission denied for table chip_count_submissions',
     'a guest cannot write a chip count directly');
   reset role;
+end $$;
+
+\echo '── production-equivalent leave: pre-feature rows, ACTIVE table ──'
+do $$
+declare
+  admin uuid := 'a0000000-0000-4000-8000-000000000001';
+  reg   uuid := 'a0000000-0000-4000-8000-000000000003';
+  guest uuid := 'd0000000-0000-4000-8000-00000000000d';
+  t public.poker_tables;
+  seat_admin uuid; seat_reg uuid; seat_guest uuid;
+  paid int; issued int;
+begin
+  insert into auth.users (id, email, raw_user_meta_data, is_anonymous)
+  values (guest, null, '{"display_name":"אורח ותיק"}', true)
+  on conflict (id) do nothing;
+
+  perform test_as(admin);
+  t := public.create_poker_table('שולחן ייצור', current_date, now(),
+         now() + interval '5 hours', 5000, 500, 6, 'AUTO_JOIN', 'OPEN', 'ADMIN_COUNT', true);
+
+  perform test_as(reg);
+  perform public.join_table(t.join_code, 'מיכל');
+  perform test_as(guest);
+  perform public.join_table(t.join_code, 'אורח ותיק');
+
+  -- The table is genuinely running: ACTIVE with started_at populated.
+  perform test_as(admin);
+  perform public.set_table_status(t.id, 'ACTIVE');
+  perform expect((select status = 'ACTIVE' and started_at is not null
+                    from public.poker_tables where id = t.id),
+    'the fixture table is ACTIVE with started_at populated');
+
+  select id into seat_admin from public.table_players where table_id = t.id and user_id = admin;
+  select id into seat_reg   from public.table_players where table_id = t.id and user_id = reg;
+  select id into seat_guest from public.table_players where table_id = t.id and user_id = guest;
+
+  -- Model rows that predate the leave feature: left_at was added as a nullable
+  -- column, so every existing row carries null. Set it explicitly to be sure
+  -- the fixture matches production rather than relying on insert defaults.
+  update public.table_players set left_at = null where table_id = t.id;
+
+  -- They have buy-ins and issued chips, and have never left.
+  perform public.admin_add_buyin(seat_reg);
+  perform public.admin_add_buyin(seat_guest);
+  select total_paid_agorot, chips_issued into paid, issued
+    from public.table_player_totals where table_player_id = seat_reg;
+  perform expect(paid = 10000 and issued = 1000,
+    'the pre-feature player has buy-ins and issued chips');
+  perform expect((select count(*) from public.chip_count_submissions
+                   where table_player_id = seat_reg) = 0,
+    'no leave has ever succeeded for this player');
+  perform expect((select count(*) from public.table_players
+                   where table_id = t.id and left_at is null) = 3,
+    'all three seats read as seated before anyone leaves');
+
+  -- A. Registered authenticated user leaves.
+  perform test_as(reg);
+  perform public.leave_table(seat_reg, 100);
+  perform expect((select left_at is not null from public.table_players where id = seat_reg),
+    'A. a registered user on a pre-feature row can leave an ACTIVE table');
+
+  -- B. Supabase anonymous authenticated guest leaves.
+  perform test_as(guest);
+  perform public.leave_table(seat_guest, 100);
+  perform expect((select left_at is not null from public.table_players where id = seat_guest),
+    'B. an anonymous guest on a pre-feature row can leave an ACTIVE table');
+
+  -- The admin is untouched and still playing.
+  perform expect((select left_at is null from public.table_players where id = seat_admin),
+    'the remaining player stays seated');
+end $$;
+
+\echo '── a submitted chip count is not, by itself, leaving ──'
+do $$
+declare
+  admin uuid := 'a0000000-0000-4000-8000-000000000001';
+  t public.poker_tables; seat uuid;
+begin
+  perform test_as(admin);
+  t := public.create_poker_table('ספירה ללא עזיבה', current_date, now(),
+         now() + interval '3 hours', 5000, 500, 6, 'AUTO_JOIN', 'OPEN', 'SELF_COUNT', true);
+  perform public.set_table_status(t.id, 'ACTIVE');
+  select id into seat from public.table_players where table_id = t.id and user_id = admin;
+
+  -- Move to counting, submit a count, then come back to play.
+  perform public.set_table_status(t.id, 'COUNTING');
+  perform public.submit_chip_count(seat, 400);
+  perform public.set_table_status(t.id, 'ACTIVE');
+
+  perform expect((select submitted_chips from public.chip_count_submissions
+                   where table_player_id = seat) = 400,
+    'a chip count exists for this player');
+  perform expect((select left_at is null from public.table_players where id = seat),
+    'having a chip count submission does NOT mean the player left');
+
+  -- And leaving still works despite the pre-existing submission row.
+  perform public.leave_table(seat, 700);
+  perform expect((select left_at is not null from public.table_players where id = seat),
+    'an existing chip submission does not block leaving');
+  perform expect((select approved_chips from public.chip_count_submissions
+                   where table_player_id = seat) = 700,
+    'the leave count overwrites the earlier submission');
+end $$;
+
+\echo '── every leave refusal reports its own code ──'
+do $$
+declare
+  admin uuid := 'a0000000-0000-4000-8000-000000000001';
+  other uuid := 'a0000000-0000-4000-8000-000000000002';
+  t public.poker_tables; seat_admin uuid; seat_other uuid;
+begin
+  perform test_as(admin);
+  t := public.create_poker_table('קודי שגיאה', current_date, now(),
+         now() + interval '3 hours', 5000, 500, 6, 'AUTO_JOIN', 'OPEN', 'ADMIN_COUNT', true);
+  perform test_as(other);
+  perform public.join_table(t.join_code, 'שי');
+  select id into seat_admin from public.table_players where table_id = t.id and user_id = admin;
+  select id into seat_other from public.table_players where table_id = t.id and user_id = other;
+
+  perform test_as(other);
+  perform expect_error(format('select public.leave_table(%L, 100)', seat_admin),
+    'LEAVE_UNAUTHORIZED', 'leaving for another player');
+  perform expect_error(format('select public.leave_table(%L, -1)', seat_other),
+    'LEAVE_INVALID_CHIPS', 'a negative chip count');
+  perform expect_error(format('select public.leave_table(%L, null)', seat_other),
+    'LEAVE_INVALID_CHIPS', 'a null chip count');
+  perform expect_error(
+    'select public.leave_table(''00000000-0000-4000-8000-000000000000'', 100)',
+    'LEAVE_PLAYER_NOT_FOUND', 'an unknown seat');
+
+  -- Once the game is past playing, leaving is closed.
+  perform test_as(admin);
+  perform public.set_table_status(t.id, 'ACTIVE');
+  perform public.set_table_status(t.id, 'COUNTING');
+  perform test_as(other);
+  perform expect_error(format('select public.leave_table(%L, 100)', seat_other),
+    'LEAVE_TABLE_NOT_ACTIVE', 'leaving once counting has started');
+
+  perform test_as(admin);
+  perform public.set_table_status(t.id, 'ACTIVE');
+  perform test_as(other);
+  perform public.leave_table(seat_other, 100);
+  perform expect_error(format('select public.leave_table(%L, 100)', seat_other),
+    'LEAVE_ALREADY_LEFT', 'leaving a second time');
 end $$;
 
 \echo ''

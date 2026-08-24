@@ -40,6 +40,15 @@ const MESSAGES: Record<string, string> = {
   INVALID_CHIP_COUNT: 'יש להזין מספר ז׳יטונים שלם, אפס או יותר',
   NOT_A_TABLE_MEMBER: 'אינך משתתף בשולחן הזה',
   SCHEMA_OUT_OF_DATE: 'הפעולה אינה זמינה כרגע. נסו שוב מאוחר יותר.',
+
+  // Leaving a table. Each has its own code so a failure names its own cause in
+  // the server log; the Hebrew stays plain and free of internals.
+  LEAVE_UNAUTHORIZED: 'אין לך הרשאה לעזוב עבור שחקן אחר',
+  LEAVE_PLAYER_NOT_FOUND: 'לא מצאנו את הכיסא שלך בשולחן הזה',
+  LEAVE_ALREADY_LEFT: 'כבר עזבת את השולחן',
+  LEAVE_TABLE_NOT_ACTIVE: 'לא ניתן לעזוב את השולחן בשלב הנוכחי של המשחק',
+  LEAVE_INVALID_STATE: 'הכיסא שלך אינו פעיל בשולחן הזה',
+  LEAVE_INVALID_CHIPS: 'יש להזין מספר ז׳יטונים שלם, אפס או יותר',
 };
 
 export const GENERIC_ERROR = 'משהו השתבש. נסו שוב בעוד רגע.';
