@@ -77,7 +77,7 @@ function ShareButton({
       className={
         'h-11 rounded-xl text-sm font-semibold transition-colors ' +
         (primary
-          ? 'bg-brand text-white hover:bg-brand/90'
+          ? 'bg-brand text-on-brand hover:bg-brand/90'
           : 'border border-line bg-surface-2 text-ink hover:bg-surface-3')
       }
     >

@@ -51,7 +51,7 @@ export function JoinChoice({
         <p className="mt-1 text-sm text-ink-faint">התחבר לחשבון שלך והמשך לשולחן</p>
         <Link
           href={`/auth/sign-in?next=${encodeURIComponent(backHere)}`}
-          className="mt-3 flex h-13 min-h-12 items-center justify-center rounded-xl bg-brand px-5 text-base font-bold text-white"
+          className="mt-3 flex h-13 min-h-12 items-center justify-center rounded-xl bg-brand px-5 text-base font-bold text-on-brand"
         >
           התחברות לחשבון
         </Link>

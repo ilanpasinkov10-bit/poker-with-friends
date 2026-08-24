@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from 'next';
 import { Heebo } from 'next/font/google';
+import { ThemeProvider } from '@/components/theme/ThemeProvider';
 import { ToastProvider } from '@/components/ui/Toast';
+import { themeBootstrapScript } from '@/lib/theme';
 import './globals.css';
 
 const heebo = Heebo({
@@ -20,7 +22,11 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: '#0a0b10',
+  // The browser chrome follows the painted theme, not a fixed colour.
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#eef0f6' },
+    { media: '(prefers-color-scheme: dark)', color: '#0a0b10' },
+  ],
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
@@ -29,9 +35,18 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="he" dir="rtl" className={heebo.variable}>
+    // The bootstrap script below sets `data-theme` on this element before
+    // React hydrates, so the attribute legitimately differs from the server's.
+    <html lang="he" dir="rtl" className={heebo.variable} suppressHydrationWarning>
+      <head>
+        {/* Inline and synchronous: anything deferred paints the wrong theme
+            first. This is the whole of the no-flash mechanism. */}
+        <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript() }} />
+      </head>
       <body className="min-h-dvh bg-base text-ink antialiased">
-        <ToastProvider>{children}</ToastProvider>
+        <ThemeProvider>
+          <ToastProvider>{children}</ToastProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

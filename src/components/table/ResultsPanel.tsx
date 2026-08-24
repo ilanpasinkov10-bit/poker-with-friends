@@ -139,7 +139,7 @@ export function ResultsPanel({ model }: { model: TableViewModel }) {
           </p>
           <Link
             href={`/auth/sign-up?next=${encodeURIComponent(`/table/${table.id}`)}`}
-            className="mt-4 inline-flex h-12 items-center justify-center rounded-xl bg-brand px-6 font-bold text-white"
+            className="mt-4 inline-flex h-12 items-center justify-center rounded-xl bg-brand px-6 font-bold text-on-brand"
           >
             שמור את הפרופיל שלי
           </Link>
@@ -213,7 +213,7 @@ function SettlementList({
                   className={cn(
                     'h-9 shrink-0 rounded-lg px-3 text-xs font-bold disabled:opacity-50',
                     settlement.is_paid
-                      ? 'bg-profit/20 text-profit'
+                      ? 'bg-profit-soft text-profit'
                       : 'border border-line bg-surface-2 text-ink-muted',
                   )}
                 >

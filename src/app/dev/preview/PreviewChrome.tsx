@@ -1,6 +1,12 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import { useTheme } from '@/components/theme/ThemeProvider';
+import {
+  THEME_LABEL,
+  THEME_PREFERENCES,
+  normaliseThemePreference,
+} from '@/lib/theme';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 
@@ -59,6 +65,8 @@ export function PreviewChrome({
             ))}
           </select>
 
+          <PreviewThemeSwitch />
+
           <div className="flex shrink-0 items-center gap-1">
             <NavButton href={previous ? `/dev/preview?screen=${previous.id}` : undefined}>
               ›
@@ -102,5 +110,24 @@ function NavButton({ href, children }: { href?: string; children: ReactNode }) {
     >
       {children}
     </Link>
+  );
+}
+
+/** Flips the real appearance preference, so the gallery reviews both themes. */
+function PreviewThemeSwitch() {
+  const { preference, setPreference, ready } = useTheme();
+  return (
+    <select
+      aria-label="מראה"
+      value={ready ? preference : 'system'}
+      onChange={(event) => setPreference(normaliseThemePreference(event.target.value))}
+      className="shrink-0 rounded-md border border-white/15 bg-[#1b1e29] px-2 py-1.5 text-[0.7rem] text-white"
+    >
+      {THEME_PREFERENCES.map((option) => (
+        <option key={option} value={option}>
+          {THEME_LABEL[option]}
+        </option>
+      ))}
+    </select>
   );
 }

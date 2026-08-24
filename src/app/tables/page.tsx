@@ -27,7 +27,7 @@ export default async function MyTablesPage() {
           <h1 className="text-2xl font-black tracking-tight text-ink">השולחנות שלי</h1>
           <Link
             href="/table/new"
-            className="inline-flex h-10 items-center rounded-xl bg-brand px-4 text-sm font-bold text-white"
+            className="inline-flex h-10 items-center rounded-xl bg-brand px-4 text-sm font-bold text-on-brand"
           >
             שולחן חדש
           </Link>

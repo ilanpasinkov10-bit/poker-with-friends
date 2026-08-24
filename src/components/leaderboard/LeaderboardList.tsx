@@ -28,7 +28,7 @@ export function LeaderboardList({ rows }: { rows: LeaderboardEntry[] }) {
         action={
           <Link
             href="/profile/settings"
-            className="inline-flex h-11 items-center rounded-xl bg-brand px-5 font-semibold text-white"
+            className="inline-flex h-11 items-center rounded-xl bg-brand px-5 font-semibold text-on-brand"
           >
             הצטרפו ללוח ההישגים
           </Link>

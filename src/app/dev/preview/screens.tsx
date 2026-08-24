@@ -21,6 +21,7 @@ import { ProfileOverview } from '@/components/profile/ProfileOverview';
 import { ProfileSettingsForm } from '@/components/profile/ProfileSettingsForm';
 import { ProfileTabs } from '@/components/profile/ProfileTabs';
 import { StatisticsView } from '@/components/profile/StatisticsView';
+import { AppearanceControl } from '@/components/theme/AppearanceControl';
 import { CreateTableForm } from '@/components/table/CreateTableForm';
 import { LeaderboardView } from '@/components/table/LeaderboardView';
 import { PlayerCard } from '@/components/table/PlayerCard';
@@ -549,6 +550,25 @@ export const SCREENS: PreviewScreen[] = [
           <ProfileSettingsForm displayName={PROFILE.displayName} privacy={PRIVACY_SETTINGS} />
         </div>
       </ProfileFrame>
+    ),
+  },
+  {
+    id: 'appearance',
+    label: 'מראה (בהיר/כהה)',
+    group: 'פרופיל',
+    note: 'הבורר שמופיע בהגדרות הפרופיל. הבחירה נשמרת במכשיר ומשנה את כל האפליקציה.',
+    render: () => (
+      <Framed title="הגדרות" subtitle="מראה">
+        <section>
+          <SectionTitle>מראה</SectionTitle>
+          <Card className="grid gap-2">
+            <AppearanceControl />
+            <p className="text-xs text-ink-faint">
+              הבחירה נשמרת במכשיר הזה ונשמרת גם אחרי רענון או סגירת הדפדפן.
+            </p>
+          </Card>
+        </section>
+      </Framed>
     ),
   },
   {

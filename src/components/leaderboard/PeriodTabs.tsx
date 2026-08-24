@@ -17,7 +17,7 @@ export function PeriodTabs({ current }: { current: LeaderboardPeriod }) {
             className={cn(
               'inline-flex h-10 flex-1 items-center justify-center rounded-full text-sm font-semibold transition-colors',
               active
-                ? 'bg-brand text-white'
+                ? 'bg-brand text-on-brand'
                 : 'border border-line bg-surface-2 text-ink-muted hover:text-ink',
             )}
           >

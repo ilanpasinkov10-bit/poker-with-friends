@@ -135,60 +135,74 @@ export function CreateTableForm({
           />
         </Field>
 
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="שעת התחלה" htmlFor="startTime">
-            <TextInput
-              id="startTime"
-              type="time"
-              required
-              ltr
-              value={startTime}
-              onChange={(e) => setStartTime(e.target.value)}
-            />
-          </Field>
-          <Field label="שעת סיום" htmlFor="endTime" hint="אפשר להאריך בהמשך">
-            <TextInput
-              id="endTime"
-              type="time"
-              required
-              ltr
-              value={endTime}
-              onChange={(e) => setEndTime(e.target.value)}
-            />
-          </Field>
+        {/* Two columns only while the card is wide enough for two native time
+            widgets — a container query rather than a device width, because
+            what has to fit is this row inside this card, not the phone.
+            Two of them need 262px (see Field.tsx); the threshold is set well
+            above that because Safari draws these controls wider than the
+            Chromium the measurement came from, and a stacked row is never
+            wrong while a cramped one is. In practice: side by side from a
+            375px phone up, stacked below. */}
+        <div className="@container">
+          <div className="grid gap-3 @min-[19rem]:grid-cols-2">
+            <Field label="שעת התחלה" htmlFor="startTime">
+              <TextInput
+                id="startTime"
+                type="time"
+                required
+                ltr
+                value={startTime}
+                onChange={(e) => setStartTime(e.target.value)}
+              />
+            </Field>
+            <Field label="שעת סיום" htmlFor="endTime" hint="אפשר להאריך בהמשך">
+              <TextInput
+                id="endTime"
+                type="time"
+                required
+                ltr
+                value={endTime}
+                onChange={(e) => setEndTime(e.target.value)}
+              />
+            </Field>
+          </div>
         </div>
       </Card>
 
       <Card className="grid gap-4">
         <h2 className="text-sm font-bold text-ink">כסף וז׳יטונים</h2>
 
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="סכום כניסה (₪)" htmlFor="buyIn">
-            <TextInput
-              id="buyIn"
-              type="number"
-              inputMode="numeric"
-              min={1}
-              step={1}
-              required
-              ltr
-              value={buyIn}
-              onChange={(e) => setBuyIn(e.target.value)}
-            />
-          </Field>
-          <Field label="ז׳יטונים לכניסה" htmlFor="chips">
-            <TextInput
-              id="chips"
-              type="number"
-              inputMode="numeric"
-              min={1}
-              step={1}
-              required
-              ltr
-              value={chips}
-              onChange={(e) => setChips(e.target.value)}
-            />
-          </Field>
+        {/* Plain number fields, which shrink freely — they only need enough
+            room to read, so they stay paired down to the narrowest phone. */}
+        <div className="@container">
+          <div className="grid gap-3 @min-[15rem]:grid-cols-2">
+            <Field label="סכום כניסה (₪)" htmlFor="buyIn">
+              <TextInput
+                id="buyIn"
+                type="number"
+                inputMode="numeric"
+                min={1}
+                step={1}
+                required
+                ltr
+                value={buyIn}
+                onChange={(e) => setBuyIn(e.target.value)}
+              />
+            </Field>
+            <Field label="ז׳יטונים לכניסה" htmlFor="chips">
+              <TextInput
+                id="chips"
+                type="number"
+                inputMode="numeric"
+                min={1}
+                step={1}
+                required
+                ltr
+                value={chips}
+                onChange={(e) => setChips(e.target.value)}
+              />
+            </Field>
+          </div>
         </div>
 
         <Field

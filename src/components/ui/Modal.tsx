@@ -47,7 +47,7 @@ export function Modal({
         type="button"
         aria-label="סגירה"
         onClick={onClose}
-        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+        className="absolute inset-0 bg-scrim backdrop-blur-sm"
       />
       <div
         ref={panelRef}
@@ -119,7 +119,7 @@ export function ConfirmDialog({
           disabled={loading}
           className={cn(
             'h-11 rounded-xl font-semibold disabled:opacity-60',
-            tone === 'danger' ? 'bg-loss text-[#2b0a13]' : 'bg-brand text-white',
+            tone === 'danger' ? 'bg-loss text-on-loss' : 'bg-brand text-on-brand',
           )}
         >
           {loading ? '…' : confirmLabel}
