@@ -24,7 +24,29 @@ export async function guard<T>(run: () => Promise<ActionResult<T>>): Promise<Act
   try {
     return await run();
   } catch (error) {
-    if (process.env.NODE_ENV !== 'production') console.error('[action]', error);
+    // Always logged, production included. This runs on the server, so the
+    // detail reaches the platform logs and never the browser — and without it
+    // a failing action is indistinguishable from any other in production.
+    console.error('[action]', describeForLog(error));
     return fail(error);
   }
+}
+
+/** A single log line carrying whatever the error actually knows about itself. */
+function describeForLog(error: unknown): string {
+  if (error instanceof AppError) {
+    return `${error.code}${error.detail ? `: ${error.detail}` : ''}`;
+  }
+  if (typeof error === 'object' && error !== null) {
+    const e = error as { code?: unknown; message?: unknown; details?: unknown; hint?: unknown };
+    return [
+      e.code ? `code=${String(e.code)}` : null,
+      e.message ? `message=${String(e.message)}` : null,
+      e.details ? `details=${String(e.details)}` : null,
+      e.hint ? `hint=${String(e.hint)}` : null,
+    ]
+      .filter(Boolean)
+      .join(' | ');
+  }
+  return String(error);
 }

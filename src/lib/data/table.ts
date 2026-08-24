@@ -1,6 +1,7 @@
 import 'server-only';
 
 import { notFound } from 'next/navigation';
+import { hasLeftTable, isStillSeated, normaliseLeftAt } from '@/lib/domain/participation';
 import { createClient } from '@/lib/supabase/server';
 import type {
   BuyinTransactionRow,
@@ -153,7 +154,8 @@ export async function loadTableView(
       isAdmin: row.user_id === table.owner_id,
       avatarUrl: row.user_id ? (avatarByUser.get(row.user_id) ?? null) : null,
       isGuest: row.user_id ? (guestByUser.get(row.user_id) ?? false) : false,
-      leftAt: row.left_at,
+      // Normalised rather than taken raw: an absent column must mean seated.
+      leftAt: normaliseLeftAt(row.left_at),
       joinedAt: row.joined_at,
       buyInCount: totals?.buy_in_count ?? 0,
       totalPaidAgorot: totals?.total_paid_agorot ?? 0,
@@ -169,8 +171,8 @@ export async function loadTableView(
   // A leaver keeps status ACTIVE so their result stays in the settlement; only
   // `leftAt` decides whether they are still at the table.
   const participants = allViews.filter((p) => p.status === 'ACTIVE');
-  const players = participants.filter((p) => p.leftAt === null);
-  const leftPlayers = participants.filter((p) => p.leftAt !== null);
+  const players = participants.filter((p) => isStillSeated(p.leftAt));
+  const leftPlayers = participants.filter((p) => hasLeftTable(p.leftAt));
   const pendingPlayers = allViews.filter((p) => p.status === 'PENDING');
   const isAdmin = table.owner_id === viewerId;
   const myPlayer = allViews.find((p) => p.userId === viewerId) ?? null;
