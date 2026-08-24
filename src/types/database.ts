@@ -69,6 +69,8 @@ export type TablePlayerRow = {
   is_admin: boolean;
   joined_at: string;
   approved_at: string | null;
+  /** Set when the player cashed out of a game in progress. */
+  left_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -265,6 +267,7 @@ export type Database = {
       mark_settlement_paid: { Args: { p_settlement: string; p_paid: boolean }; Returns: undefined };
       get_or_create_poker_group: { Args: { p_name: string }; Returns: string };
       delete_poker_table: { Args: { p_table: string }; Returns: undefined };
+      leave_table: { Args: { p_table_player: string; p_chips: number }; Returns: undefined };
       get_global_leaderboard: {
         Args: { p_period?: string; p_limit?: number };
         Returns: unknown;

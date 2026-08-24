@@ -97,6 +97,39 @@ export async function resolveJoinRequestAction(
   });
 }
 
+/**
+ * Cashes a player out of a game in progress.
+ *
+ * `leave_table` records the declared chip count as an approved submission and
+ * stamps `left_at`, all under a row lock — so a second tap is refused and the
+ * player's result continues through the same finalisation path as everyone
+ * else's. Their buy-ins stay in the pot.
+ */
+export async function leaveTableAction(
+  tableId: string,
+  tablePlayerId: string,
+  chips: number,
+): Promise<ActionResult> {
+  return guard(async () => {
+    const value = z
+      .number()
+      .int('יש להזין מספר שלם')
+      .min(0, 'מספר הז׳יטונים לא יכול להיות שלילי')
+      .max(100_000_000)
+      .parse(chips);
+
+    const supabase = await createClient();
+    const { error } = await supabase.rpc('leave_table', {
+      p_table_player: tablePlayerId,
+      p_chips: value,
+    });
+    if (error) throw error;
+
+    revalidatePath(`/table/${tableId}`);
+    return ok();
+  });
+}
+
 export async function removePlayerAction(
   tableId: string,
   tablePlayerId: string,

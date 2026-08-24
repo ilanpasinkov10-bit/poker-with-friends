@@ -21,7 +21,9 @@ import {
 import type { TableViewModel } from '@/lib/data/table';
 
 export function CountingPanel({ model }: { model: TableViewModel }) {
-  const { table, players, viewer } = model;
+  // Leavers already have an approved count and their chips are part of the
+  // total, so the counting screen works over every participant.
+  const { table, participants: players, viewer } = model;
   const toast = useToast();
   const [pending, startTransition] = useTransition();
   const [confirmFinalize, setConfirmFinalize] = useState(false);

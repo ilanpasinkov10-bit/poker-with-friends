@@ -1,6 +1,6 @@
 'use client';
 
-import { useTransition } from 'react';
+import { useState, useTransition } from 'react';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -11,12 +11,14 @@ import { formatChips, formatMoney } from '@/lib/format';
 import { buyInsWord } from '@/lib/labels';
 import { canRequestRebuy, isGameOpenForBuyIns } from '@/lib/domain/permissions';
 import { cancelRebuyRequestAction, requestRebuyAction } from '@/lib/actions/buyins';
+import { LeaveTableDialog } from './LeaveTableDialog';
 import type { TableViewModel } from '@/lib/data/table';
 
 /** The player's own card — their money, their chips, their one action. */
 export function MyPlayerPanel({ model }: { model: TableViewModel }) {
   const toast = useToast();
   const [pending, startTransition] = useTransition();
+  const [leaveOpen, setLeaveOpen] = useState(false);
   const { table, viewer } = model;
   const player = viewer.player;
   if (!player) return null;
@@ -59,6 +61,7 @@ export function MyPlayerPanel({ model }: { model: TableViewModel }) {
           <div className="flex items-center gap-2">
             <p className="truncate text-lg font-black text-ink">{player.displayName}</p>
             {viewer.isAnonymous ? <Badge tone="neutral">אורח</Badge> : null}
+            {player.leftAt ? <Badge tone="warn">עזבת</Badge> : null}
           </div>
           {player.status === 'PENDING' ? (
             <Badge tone="warn" className="mt-1">
@@ -78,7 +81,13 @@ export function MyPlayerPanel({ model }: { model: TableViewModel }) {
         <Cell label="ז׳יטונים" value={<Num>{formatChips(player.chipsIssued)}</Num>} />
       </div>
 
-      {player.status === 'ACTIVE' && gameOpen ? (
+      {player.leftAt ? (
+        <p className="mt-4 rounded-xl border border-line bg-surface-2 p-3 text-center text-sm text-ink-muted">
+          עזבת את השולחן. התוצאה שלך נשמרה ותיכלל בהתחשבנות הסופית.
+        </p>
+      ) : null}
+
+      {player.status === 'ACTIVE' && gameOpen && !player.leftAt ? (
         <div className="mt-4">
           {hasPendingRequest ? (
             <div className="rounded-xl border border-warn/30 bg-warn-soft p-3 text-center">
@@ -101,8 +110,29 @@ export function MyPlayerPanel({ model }: { model: TableViewModel }) {
               בקש כניסה נוספת
             </Button>
           ) : null}
+
+          <Button
+            variant="ghost"
+            size="md"
+            block
+            className="mt-2"
+            onClick={() => setLeaveOpen(true)}
+          >
+            עזיבת שולחן
+          </Button>
         </div>
       ) : null}
+
+      <LeaveTableDialog
+        open={leaveOpen}
+        onClose={() => setLeaveOpen(false)}
+        tableId={table.id}
+        tablePlayerId={player.id}
+        chipsIssued={player.chipsIssued}
+        totalPaidAgorot={player.totalPaidAgorot}
+        buyInAgorot={table.buy_in_agorot}
+        chipsPerBuyIn={table.chips_per_buy_in}
+      />
     </Card>
   );
 }
