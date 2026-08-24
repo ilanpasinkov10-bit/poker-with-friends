@@ -106,6 +106,7 @@ waiting for success before the next:
 7. `supabase/migrations/0007_fix_function_grants.sql`
 8. `supabase/migrations/0008_delete_profiles_leaderboard.sql`
 9. `supabase/migrations/0009_leave_active_table.sql`
+10. `supabase/migrations/0010_repair_leave_table.sql`
 
 Order matters: later files reference objects created by earlier ones.
 
@@ -122,6 +123,7 @@ Order matters: later files reference objects created by earlier ones.
 | `0007` | Grants `compute_final_rows` to `authenticated`, and self-checks that every RPC the app calls is executable |
 | `0008` | Table deletion, public profiles, the global leaderboard, and the opt-in `show_on_leaderboard` privacy switch (defaults to off) |
 | `0009` | Leaving a game in progress: `table_players.left_at` and `leave_table` |
+| `0010` | Self-contained repair of the leave flow, granular error codes, and a PostgREST schema reload |
 
 Realtime, Storage and RLS need no dashboard clicks — they are configured by
 `0004` and `0005`.
@@ -199,6 +201,13 @@ Then the full path, with a phone or a private window as the second device:
    that account's history.
 
 ---
+
+## Checking that the database matches the deployed app
+
+A feature can be live in the code and dead in production if its migration did
+not fully apply. Paste `supabase/tests/verify_deployment.sql` into the SQL
+Editor: it returns one row of booleans, and every column must be `t`. Any `f`
+names a feature that will fail at runtime no matter what the application does.
 
 ## Verifying the database layer offline
 
