@@ -94,7 +94,7 @@ function TableHeader({ model, connected }: { model: TableViewModel; connected: b
 }
 
 function LiveSection({ model }: { model: TableViewModel }) {
-  const { table, viewer, players, pendingPlayers, pendingRequests, totals } = model;
+  const { table, viewer, players, leftPlayers, pendingPlayers, pendingRequests, totals } = model;
   const [profileUserId, setProfileUserId] = useState<string | null>(null);
 
   return (
@@ -167,6 +167,28 @@ function LiveSection({ model }: { model: TableViewModel }) {
             ))}
           </ul>
         )}
+
+        {leftPlayers.length > 0 ? (
+          <div className="mt-5">
+            <SectionTitle
+              action={<span className="text-xs text-ink-faint">הכסף שלהם נשאר בקופה</span>}
+            >
+              עזבו את השולחן
+            </SectionTitle>
+            <ul className="grid gap-2 opacity-70">
+              {leftPlayers.map((player) => (
+                <PlayerCard
+                  key={player.id}
+                  player={player}
+                  isMe={player.id === viewer.player?.id}
+                  maxBuyIns={table.max_buy_ins}
+                  showMoney={model.canSeeEveryonesMoney || player.id === viewer.player?.id}
+                  onOpenProfile={setProfileUserId}
+                />
+              ))}
+            </ul>
+          </div>
+        ) : null}
 
         {!model.canSeeEveryonesMoney ? (
           <p className="mt-3 text-center text-[0.7rem] text-ink-faint">

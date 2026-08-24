@@ -34,6 +34,9 @@ const MESSAGES: Record<string, string> = {
   TABLE_NOT_READABLE: 'השולחן נוצר אך אינו נגיש כרגע. רעננו את הדף ובדקו ב״השולחנות שלי״.',
   GAME_ALREADY_STARTED: 'לא ניתן למחוק שולחן אחרי שהמשחק התחיל',
   PROFILE_PRIVATE: 'השחקן בחר להסתיר את הפרופיל שלו',
+  ALREADY_LEFT: 'כבר עזבת את השולחן',
+  PLAYER_HAS_LEFT: 'השחקן כבר עזב את השולחן',
+  IMAGE_PROCESSING_FAILED: 'לא הצלחנו לעבד את התמונה. נסו לבחור תמונה אחרת מהגלריה.',
 };
 
 export const GENERIC_ERROR = 'משהו השתבש. נסו שוב בעוד רגע.';

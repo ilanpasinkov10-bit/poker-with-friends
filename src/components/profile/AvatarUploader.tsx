@@ -5,17 +5,19 @@ import { useRouter } from 'next/navigation';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
+import { errorMessage } from '@/lib/errors';
+import { avatarObjectPath, prepareAvatar } from '@/lib/image/prepare';
 import { removeAvatarAction, setAvatarAction } from '@/lib/actions/profile';
 import { createClient } from '@/lib/supabase/client';
 
-const MAX_BYTES = 2 * 1024 * 1024;
-const ALLOWED: Record<string, string> = {
-  'image/jpeg': 'jpg',
-  'image/png': 'png',
-  'image/webp': 'webp',
-  'image/gif': 'gif',
-};
-
+/**
+ * Profile photo upload built for phone cameras.
+ *
+ * A camera photo is routinely 5–15 MB, so the original is never uploaded:
+ * it is decoded, squared, scaled to at most 1200px and re-encoded in the
+ * browser first. Storage still enforces its own 2 MB ceiling and its
+ * owner-scoped path policy — neither is relaxed.
+ */
 export function AvatarUploader({
   name,
   avatarUrl,
@@ -26,22 +28,21 @@ export function AvatarUploader({
   const router = useRouter();
   const toast = useToast();
   const inputRef = useRef<HTMLInputElement>(null);
-  const [uploading, setUploading] = useState(false);
+  const [stage, setStage] = useState<'idle' | 'processing' | 'uploading'>('idle');
   const [removing, startRemove] = useTransition();
 
-  const upload = async (file: File) => {
-    const extension = ALLOWED[file.type];
-    if (!extension) {
-      toast.error('אפשר להעלות רק תמונות מסוג JPG, PNG, WEBP או GIF');
-      return;
-    }
-    if (file.size > MAX_BYTES) {
-      toast.error('התמונה גדולה מדי — עד 2MB');
-      return;
-    }
+  const busy = stage !== 'idle';
 
-    setUploading(true);
+  const handle = async (file: File) => {
+    setStage('processing');
     try {
+      const prepared = await prepareAvatar(file).catch(() => null);
+      if (!prepared) {
+        toast.error(errorMessage('IMAGE_PROCESSING_FAILED'));
+        return;
+      }
+
+      setStage('uploading');
       const supabase = createClient();
       const {
         data: { user },
@@ -51,12 +52,10 @@ export function AvatarUploader({
         return;
       }
 
-      // Path is `<user-id>/<random>.<ext>`; the storage policy pins the first
-      // segment to auth.uid(), so no user can write into another's folder.
-      const path = `${user.id}/${crypto.randomUUID()}.${extension}`;
+      const path = avatarObjectPath(user.id, prepared.extension);
       const { error } = await supabase.storage
         .from('avatars')
-        .upload(path, file, { contentType: file.type, upsert: false });
+        .upload(path, prepared.blob, { contentType: prepared.contentType, upsert: false });
       if (error) {
         toast.error('העלאת התמונה נכשלה, נסו שוב');
         return;
@@ -67,10 +66,11 @@ export function AvatarUploader({
         toast.error(result.message);
         return;
       }
+
       toast.success('התמונה עודכנה');
       router.refresh();
     } finally {
-      setUploading(false);
+      setStage('idle');
       if (inputRef.current) inputRef.current.value = '';
     }
   };
@@ -82,25 +82,35 @@ export function AvatarUploader({
         <input
           ref={inputRef}
           type="file"
-          accept={Object.keys(ALLOWED).join(',')}
+          // `image/*` lets the phone offer both the gallery and the camera.
+          accept="image/*"
           className="hidden"
           onChange={(event) => {
             const file = event.target.files?.[0];
-            if (file) void upload(file);
+            if (file) void handle(file);
           }}
         />
         <Button
           variant="secondary"
-          loading={uploading}
+          loading={busy}
+          disabled={busy}
           onClick={() => inputRef.current?.click()}
         >
-          {avatarUrl ? 'החלפת תמונה' : 'העלאת תמונה'}
+          {stage === 'processing'
+            ? 'מכווץ תמונה…'
+            : stage === 'uploading'
+              ? 'מעלה…'
+              : avatarUrl
+                ? 'החלפת תמונה'
+                : 'העלאת תמונה'}
         </Button>
+
         {avatarUrl ? (
           <Button
             variant="ghost"
             size="sm"
             loading={removing}
+            disabled={busy}
             onClick={() =>
               startRemove(async () => {
                 const result = await removeAvatarAction();
@@ -115,7 +125,10 @@ export function AvatarUploader({
             הסרת התמונה
           </Button>
         ) : null}
-        <p className="text-[0.7rem] text-ink-faint">JPG, PNG, WEBP או GIF · עד 2MB</p>
+
+        <p className="text-[0.7rem] leading-relaxed text-ink-faint">
+          אפשר להעלות תמונה מהגלריה או לצלם עכשיו. התמונה תכווץ אוטומטית לפני ההעלאה.
+        </p>
       </div>
     </div>
   );

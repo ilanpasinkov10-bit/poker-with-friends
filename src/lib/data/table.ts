@@ -22,6 +22,8 @@ export interface PlayerView {
   /** True for a player using an anonymous (guest) session. */
   isGuest: boolean;
   joinedAt: string;
+  /** Set when the player cashed out of a game in progress. */
+  leftAt: string | null;
   buyInCount: number;
   totalPaidAgorot: number;
   chipsIssued: number;
@@ -51,7 +53,12 @@ export interface TableViewModel {
     player: PlayerView | null;
     myPendingRequestId: string | null;
   };
+  /** Still seated and able to act. */
   players: PlayerView[];
+  /** Cashed out mid-game. Their money and chips remain part of the game. */
+  leftPlayers: PlayerView[];
+  /** Everyone whose money is in this game: seated players plus leavers. */
+  participants: PlayerView[];
   pendingPlayers: PlayerView[];
   pendingRequests: PendingRequestView[];
   totals: {
@@ -146,6 +153,7 @@ export async function loadTableView(
       isAdmin: row.user_id === table.owner_id,
       avatarUrl: row.user_id ? (avatarByUser.get(row.user_id) ?? null) : null,
       isGuest: row.user_id ? (guestByUser.get(row.user_id) ?? false) : false,
+      leftAt: row.left_at,
       joinedAt: row.joined_at,
       buyInCount: totals?.buy_in_count ?? 0,
       totalPaidAgorot: totals?.total_paid_agorot ?? 0,
@@ -158,7 +166,11 @@ export async function loadTableView(
   };
 
   const allViews = playerRows.map(toView);
-  const players = allViews.filter((p) => p.status === 'ACTIVE');
+  // A leaver keeps status ACTIVE so their result stays in the settlement; only
+  // `leftAt` decides whether they are still at the table.
+  const participants = allViews.filter((p) => p.status === 'ACTIVE');
+  const players = participants.filter((p) => p.leftAt === null);
+  const leftPlayers = participants.filter((p) => p.leftAt !== null);
   const pendingPlayers = allViews.filter((p) => p.status === 'PENDING');
   const isAdmin = table.owner_id === viewerId;
   const myPlayer = allViews.find((p) => p.userId === viewerId) ?? null;
@@ -193,15 +205,20 @@ export async function loadTableView(
       myPendingRequestId: myPendingRequest?.id ?? null,
     },
     players,
+    leftPlayers,
+    participants,
     pendingPlayers,
     pendingRequests,
     totals: {
+      // The live roster is the seated players…
       playerCount: players.length,
-      buyInCount: players.reduce((sum, p) => sum + p.buyInCount, 0),
-      potAgorot: players.reduce((sum, p) => sum + p.totalPaidAgorot, 0),
-      chipsIssued: players.reduce((sum, p) => sum + p.chipsIssued, 0),
-      chipsCounted: players.reduce((sum, p) => sum + (effectiveChips(p) ?? 0), 0),
-      playersWithCount: players.filter((p) => effectiveChips(p) !== null).length,
+      // …but every financial figure covers everyone who bought in, because a
+      // leaver's money stays in the pot and their chips came off the rack.
+      buyInCount: participants.reduce((sum, p) => sum + p.buyInCount, 0),
+      potAgorot: participants.reduce((sum, p) => sum + p.totalPaidAgorot, 0),
+      chipsIssued: participants.reduce((sum, p) => sum + p.chipsIssued, 0),
+      chipsCounted: participants.reduce((sum, p) => sum + (effectiveChips(p) ?? 0), 0),
+      playersWithCount: participants.filter((p) => effectiveChips(p) !== null).length,
     },
     canSeeEveryonesMoney: isAdmin || table.player_visibility === 'OPEN',
     results: (resultsRes.data ?? []) as GameResultRow[],

@@ -25,6 +25,7 @@ The interface is **Hebrew-first and RTL**, designed for a phone in one hand.
 | **Remember** | History, statistics, records, profit charts and per-group leaderboards. |
 | **Compare** | An opt-in global leaderboard of registered players, ranked on realised profit from finished games only. |
 | **Tidy up** | A table that never started can be deleted by its owner. |
+| **Leave early** | A player can cash out mid-game: they declare their chips, their result is settled by the same accounting as everyone else, and the game carries on. |
 
 ---
 
@@ -56,6 +57,17 @@ take row locks before they read totals, so the rules hold under concurrency and
 cannot be bypassed by a crafted request. The TypeScript in
 `src/lib/domain/permissions.ts` mirrors the same rules purely so the UI can hide
 controls that would fail — if the two ever disagree, the database wins.
+
+### Leaving a game in progress
+
+A player who cashes out keeps `status = 'ACTIVE'` and gains a `left_at`
+timestamp. That is deliberate: their buy-ins are in the pot and their issued
+chips came off the rack, so they are still a participant in that game.
+`compute_final_rows`, the chip-conservation check and `finalize_game` all select
+`status = 'ACTIVE'` and are therefore untouched — the leaver's profit and loss is
+computed by exactly the same code as everyone else's. **There is no second
+accounting path.** What `left_at` changes is only the right to keep playing: no
+further buy-ins and no rebuy requests.
 
 ### Money and chips
 

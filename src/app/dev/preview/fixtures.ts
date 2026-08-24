@@ -96,6 +96,7 @@ function seatToPlayerView(
     avatarUrl: seat.avatarUrl,
     isGuest: seat.isGuest ?? false,
     joinedAt: '2026-08-23T18:05:00.000Z',
+    leftAt: null,
     buyInCount: seat.buyIns,
     totalPaidAgorot: seat.buyIns * ECONOMICS.buyInAgorot,
     chipsIssued: seat.buyIns * ECONOMICS.chipsPerBuyIn,
@@ -188,6 +189,8 @@ function totalsFor(players: PlayerView[]): TableViewModel['totals'] {
 }
 
 export interface ModelOptions {
+  /** Seats that cashed out mid-game. */
+  leftPlayers?: PlayerView[];
   status?: TableStatus;
   asAdmin?: boolean;
   /** Which seat the viewer occupies, or null for an admin who is not playing. */
@@ -209,6 +212,7 @@ export function makeModel(options: ModelOptions = {}): TableViewModel {
     asAdmin = true,
     viewerSeatId = asAdmin ? 'seat-ilan' : 'seat-daniel',
     players = PLAYERS,
+    leftPlayers = [],
     pendingPlayers = [],
     pendingRequests = [],
     myPendingRequestId = null,
@@ -232,6 +236,8 @@ export function makeModel(options: ModelOptions = {}): TableViewModel {
 
   const viewer = players.find((p) => p.id === viewerSeatId) ?? null;
 
+  const participants = [...players, ...leftPlayers];
+
   return {
     table,
     viewer: {
@@ -242,9 +248,11 @@ export function makeModel(options: ModelOptions = {}): TableViewModel {
       myPendingRequestId,
     },
     players,
+    leftPlayers,
+    participants,
     pendingPlayers,
     pendingRequests,
-    totals: totalsFor(players),
+    totals: totalsFor(participants),
     canSeeEveryonesMoney: asAdmin || visibility === 'OPEN',
     results,
     settlements,

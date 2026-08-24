@@ -561,5 +561,155 @@ begin
     'NOT_AUTHORIZED', 'a guest cannot drive a table they do not belong to');
 end $$;
 
+\echo '── leaving a game in progress ──'
+do $$
+declare
+  admin  uuid := 'a0000000-0000-4000-8000-000000000001';
+  leaver uuid := 'a0000000-0000-4000-8000-000000000002';
+  other  uuid := 'a0000000-0000-4000-8000-000000000003';
+  t      public.poker_tables;
+  seat_admin uuid; seat_leaver uuid; seat_other uuid;
+  paid_before int; issued_before int; pot_before int;
+  paid_after int; pot_after int; counted int;
+  rows_ int;
+begin
+  perform test_as(admin);
+  t := public.create_poker_table('שולחן עזיבה', current_date, now(),
+         now() + interval '4 hours', 5000, 500, 6, 'AUTO_JOIN', 'OPEN', 'ADMIN_COUNT', true);
+  perform public.set_table_status(t.id, 'ACTIVE');
+
+  perform test_as(leaver);
+  perform public.join_table(t.join_code, 'שי');
+  perform test_as(other);
+  perform public.join_table(t.join_code, 'מיכל');
+
+  select id into seat_admin  from public.table_players where table_id = t.id and user_id = admin;
+  select id into seat_leaver from public.table_players where table_id = t.id and user_id = leaver;
+  select id into seat_other  from public.table_players where table_id = t.id and user_id = other;
+
+  -- The leaver takes two more entries: three in total, 150₪, 1,500 chips.
+  perform test_as(admin);
+  perform public.admin_add_buyin(seat_leaver);
+  perform public.admin_add_buyin(seat_leaver);
+
+  select total_paid_agorot, chips_issued into paid_before, issued_before
+    from public.table_player_totals where table_player_id = seat_leaver;
+  select sum(total_paid_agorot) into pot_before
+    from public.table_player_totals where table_id = t.id;
+  perform expect(paid_before = 15000 and issued_before = 1500,
+    'the leaver has three entries before leaving (150₪ / 1,500 chips)');
+
+  -- Nobody else may submit their leave.
+  perform test_as(other);
+  perform expect_error(format('select public.leave_table(%L, 400)', seat_leaver),
+    'NOT_AUTHORIZED', 'a player cannot make another player leave');
+  perform test_as(admin);
+  perform expect_error(format('select public.leave_table(%L, 400)', seat_leaver),
+    'NOT_AUTHORIZED', 'even the admin cannot submit a player''s leave for them');
+
+  -- A negative count is refused.
+  perform test_as(leaver);
+  perform expect_error(format('select public.leave_table(%L, -1)', seat_leaver),
+    'INVALID_INPUT', 'a negative chip count is refused');
+
+  -- The real thing: cashing out with 800 chips.
+  perform public.leave_table(seat_leaver, 800);
+  perform expect((select left_at is not null from public.table_players where id = seat_leaver),
+    'the player is marked as having left');
+
+  -- Leaving twice is impossible.
+  perform expect_error(format('select public.leave_table(%L, 900)', seat_leaver),
+    'ALREADY_LEFT', 'the same player cannot leave twice');
+
+  -- Their money and chips stay in the game.
+  select total_paid_agorot into paid_after
+    from public.table_player_totals where table_player_id = seat_leaver;
+  select sum(total_paid_agorot) into pot_after
+    from public.table_player_totals where table_id = t.id;
+  perform expect(paid_after = paid_before, 'the leaver''s buy-ins are preserved');
+  perform expect(pot_after = pot_before, 'the pot is unchanged by someone leaving');
+
+  -- Their count is recorded and already approved.
+  select approved_chips into counted
+    from public.chip_count_submissions where table_player_id = seat_leaver;
+  perform expect(counted = 800, 'the chip count they declared is recorded and approved');
+
+  -- But they can take on no more money.
+  perform test_as(admin);
+  perform expect_error(format('select public.admin_add_buyin(%L)', seat_leaver),
+    'PLAYER_HAS_LEFT', 'a player who left cannot be given another entry');
+  perform test_as(leaver);
+  perform expect_error(format('select public.request_rebuy(%L)', seat_leaver),
+    'PLAYER_HAS_LEFT', 'a player who left cannot request another entry');
+
+  -- The remaining players carry on as normal.
+  perform test_as(admin);
+  perform public.admin_add_buyin(seat_other);
+  perform expect((select buy_in_count from public.table_player_totals
+                   where table_player_id = seat_other) = 2,
+    'the remaining players continue playing normally');
+
+  -- And the leaver is still part of the settlement.
+  select count(*) into rows_ from public.compute_final_rows(t.id, false) r
+   where r.table_player_id = seat_leaver;
+  perform expect(rows_ = 1, 'the leaver still appears in the final calculation');
+end $$;
+
+\echo '── a game finalises correctly after someone left ──'
+do $$
+declare
+  admin uuid := 'a0000000-0000-4000-8000-000000000001';
+  t uuid; seat_admin uuid; seat_leaver uuid; seat_other uuid;
+  issued int; remaining int; plan jsonb; zero_sum bigint; leaver_pl int;
+begin
+  select id into t from public.poker_tables where name = 'שולחן עזיבה';
+  select id into seat_leaver from public.table_players
+   where table_id = t and user_id = 'a0000000-0000-4000-8000-000000000002';
+  select id into seat_other from public.table_players
+   where table_id = t and user_id = 'a0000000-0000-4000-8000-000000000003';
+  select id into seat_admin from public.table_players
+   where table_id = t and user_id = admin;
+
+  perform test_as(admin);
+  perform public.set_table_status(t, 'COUNTING');
+
+  -- Chips issued across everyone, including the leaver.
+  select sum(tot.chips_issued) into issued
+    from public.table_players tp
+    join public.table_player_totals tot on tot.table_player_id = tp.id
+   where tp.table_id = t and tp.status = 'ACTIVE';
+
+  -- The 800 the leaver took are already counted; the rest is still on the felt.
+  remaining := issued - 800;
+  perform public.admin_set_chip_count(seat_admin, remaining);
+  perform public.admin_set_chip_count(seat_other, 0);
+
+  -- Build the transfer plan from the computed balances.
+  with rows_ as (select * from public.compute_final_rows(t, true)),
+       creditors as (select table_player_id, profit_loss_agorot amt from rows_ where profit_loss_agorot > 0),
+       debtors   as (select table_player_id, -profit_loss_agorot amt from rows_ where profit_loss_agorot < 0)
+  select coalesce(jsonb_agg(jsonb_build_object(
+           'from', d.table_player_id, 'to', c.table_player_id,
+           'amount', least(c.amt, d.amt))), '[]'::jsonb)
+    into plan
+    from creditors c, debtors d;
+
+  -- Only valid when a single creditor faces a single debtor, which is the
+  -- shape this fixture produces.
+  perform public.finalize_game(t, plan);
+
+  select sum(profit_loss_agorot) into zero_sum from public.game_results where table_id = t;
+  perform expect(zero_sum = 0, 'profit and loss still sum to zero with a leaver in the game');
+
+  select profit_loss_agorot into leaver_pl
+    from public.game_results where table_id = t and table_player_id = seat_leaver;
+  -- Paid 150₪, cashed out 800 chips = 80₪, so down 70₪.
+  perform expect(leaver_pl = -7000,
+    'the leaver''s result is computed by the same accounting as everyone else');
+
+  perform expect((select count(*) from public.game_results where table_id = t) = 3,
+    'the leaver is included in the stored results');
+end $$;
+
 \echo ''
 \echo 'All database checks passed.'
