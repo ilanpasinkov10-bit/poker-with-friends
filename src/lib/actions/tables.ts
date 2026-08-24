@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { guard, ok, type ActionResult } from '@/lib/action-result';
 import { AppError } from '@/lib/errors';
 import { shekelsToAgorot } from '@/lib/domain/money';
+import { requireUuid, singleRow } from '@/lib/rpc';
 import { createClient } from '@/lib/supabase/server';
 import { jerusalemToUtc } from '@/lib/timezone';
 
@@ -54,7 +55,9 @@ export async function createTableAction(
         p_name: values.groupName,
       });
       if (groupError) throw groupError;
-      groupId = String(group);
+      // A scalar-returning function yields a bare string; never coerce blindly,
+      // or a null would become the literal "null" and fail as a foreign key.
+      groupId = requireUuid(group, 'get_or_create_poker_group');
     }
 
     const { data, error } = await supabase.rpc('create_poker_table', {
@@ -73,9 +76,42 @@ export async function createTableAction(
     });
     if (error) throw error;
 
-    const table = data as { id: string; join_code: string };
+    // PostgREST returns a composite result as an object, but normalise anyway:
+    // an unexpected shape must surface as an error, never as an `undefined`
+    // that gets interpolated into `/table/undefined`.
+    const table = singleRow<{ id?: unknown; join_code?: unknown }>(data);
+    if (!table) {
+      throw new AppError('RPC_BAD_SHAPE', undefined, `create_poker_table returned ${typeof data}`);
+    }
+
+    const tableId = requireUuid(table.id, 'create_poker_table.id');
+    const joinCode =
+      typeof table.join_code === 'string' && /^[A-Z0-9]{5}$/.test(table.join_code)
+        ? table.join_code
+        : null;
+    if (!joinCode) {
+      throw new AppError('RPC_BAD_SHAPE', undefined, `create_poker_table.join_code was ${typeof table.join_code}`);
+    }
+
+    // Confirm the caller can actually read the row back under RLS before
+    // telling the browser to navigate to it. Without this a policy problem
+    // would land the user on the 404 screen with no explanation.
+    const { data: readback, error: readError } = await supabase
+      .from('poker_tables')
+      .select('id')
+      .eq('id', tableId)
+      .maybeSingle();
+    if (readError) throw readError;
+    if (!readback) {
+      throw new AppError(
+        'TABLE_NOT_READABLE',
+        undefined,
+        `table ${tableId} was created but is not selectable by its creator — check RLS on poker_tables`,
+      );
+    }
+
     revalidatePath('/tables');
-    return ok({ tableId: table.id, joinCode: table.join_code });
+    return ok({ tableId, joinCode });
   });
 }
 

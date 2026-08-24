@@ -8,6 +8,8 @@ import { Field, OptionGroup, Switch, TextInput } from '@/components/ui/Field';
 import { Num } from '@/components/ui/Num';
 import { useToast } from '@/components/ui/Toast';
 import { createTableAction } from '@/lib/actions/tables';
+import { isUuid } from '@/lib/domain/ids';
+import { errorMessage } from '@/lib/errors';
 import { formatMoney } from '@/lib/format';
 import {
   COUNTING_MODE_DESCRIPTION,
@@ -82,6 +84,12 @@ export function CreateTableForm({
           });
           if (!result.ok) {
             setError(result.message);
+            return;
+          }
+          // Last line of defence: `/table/undefined` must be unreachable even
+          // if the action's contract is ever broken.
+          if (!isUuid(result.data.tableId)) {
+            setError(errorMessage('RPC_BAD_SHAPE'));
             return;
           }
           toast.success('השולחן נפתח!');
