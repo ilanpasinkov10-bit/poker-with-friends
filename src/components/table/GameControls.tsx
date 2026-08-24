@@ -5,7 +5,10 @@ import { Button } from '@/components/ui/Button';
 import { Field, OptionGroup, TextInput } from '@/components/ui/Field';
 import { ConfirmDialog, Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
+import { useRouter } from 'next/navigation';
+import { canDeleteTable } from '@/lib/domain/permissions';
 import {
+  deleteTableAction,
   extendGameAction,
   setTableStatusAction,
   updateTableSettingsAction,
@@ -23,11 +26,34 @@ import type { CountingMode, JoinMode, PlayerVisibility, PokerTableRow } from '@/
 const EXTENSIONS = [15, 30, 60] as const;
 
 export function GameControls({ table }: { table: PokerTableRow }) {
+  const router = useRouter();
   const toast = useToast();
   const [pending, startTransition] = useTransition();
   const [extendOpen, setExtendOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [confirmCounting, setConfirmCounting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  // Deletion is only ever offered before the game begins; the database
+  // enforces the same rule, so hiding the button is convenience, not security.
+  const canDelete = canDeleteTable(
+    { userId: table.owner_id, isTableAdmin: true },
+    { status: table.status, startedAt: table.started_at },
+  );
+
+  const remove = () =>
+    startTransition(async () => {
+      const result = await deleteTableAction(table.id);
+      if (!result.ok) {
+        toast.error(result.message);
+        setConfirmDelete(false);
+        return;
+      }
+      toast.success('השולחן נמחק');
+      setConfirmDelete(false);
+      router.replace('/tables');
+      router.refresh();
+    });
 
   const setStatus = (status: 'ACTIVE' | 'COUNTING' | 'CANCELLED', message: string) =>
     startTransition(async () => {
@@ -74,6 +100,12 @@ export function GameControls({ table }: { table: PokerTableRow }) {
             הגדרות שולחן
           </Button>
         ) : null}
+
+        {canDelete ? (
+          <Button variant="danger" size="sm" block onClick={() => setConfirmDelete(true)}>
+            מחק שולחן
+          </Button>
+        ) : null}
       </div>
 
       <ExtendDialog
@@ -86,6 +118,18 @@ export function GameControls({ table }: { table: PokerTableRow }) {
         open={settingsOpen}
         table={table}
         onClose={() => setSettingsOpen(false)}
+      />
+
+      <ConfirmDialog
+        open={confirmDelete}
+        title="למחוק את השולחן?"
+        message="לאחר המחיקה לא יהיה ניתן לשחזר את השולחן."
+        confirmLabel="מחק שולחן"
+        cancelLabel="ביטול"
+        tone="danger"
+        loading={pending}
+        onConfirm={remove}
+        onCancel={() => setConfirmDelete(false)}
       />
 
       <ConfirmDialog

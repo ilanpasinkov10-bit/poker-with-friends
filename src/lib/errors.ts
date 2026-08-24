@@ -32,6 +32,8 @@ const MESSAGES: Record<string, string> = {
   ANONYMOUS_DISABLED: 'הצטרפות כאורח אינה זמינה כרגע. נסו להתחבר עם חשבון.',
   RPC_BAD_SHAPE: 'קיבלנו תשובה לא צפויה מהשרת. נסו שוב בעוד רגע.',
   TABLE_NOT_READABLE: 'השולחן נוצר אך אינו נגיש כרגע. רעננו את הדף ובדקו ב״השולחנות שלי״.',
+  GAME_ALREADY_STARTED: 'לא ניתן למחוק שולחן אחרי שהמשחק התחיל',
+  PROFILE_PRIVATE: 'השחקן בחר להסתיר את הפרופיל שלו',
 };
 
 export const GENERIC_ERROR = 'משהו השתבש. נסו שוב בעוד רגע.';

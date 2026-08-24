@@ -23,6 +23,8 @@ The interface is **Hebrew-first and RTL**, designed for a phone in one hand.
 | **Count** | Admin counting or self-counting, with chip-discrepancy detection before anything is finalised. |
 | **Settle** | Profit/loss per player and the minimal set of transfers: *"דניאל מעביר לאילן 80₪"*. |
 | **Remember** | History, statistics, records, profit charts and per-group leaderboards. |
+| **Compare** | A global leaderboard of registered players, ranked on realised profit from finished games only. |
+| **Tidy up** | A table that never started can be deleted by its owner. |
 
 ---
 
@@ -102,6 +104,15 @@ is delivered through RLS. A 30-second poll covers a dropped socket.
 
 ### Privacy
 
+- `show_on_leaderboard` controls whether a registered player appears in the
+  global ranking. **It defaults to on**, because the board needs an authenticated
+  session, shows aggregates only, and covers only people who finished a game —
+  so it reveals no more than the settlement of a table they already shared.
+  Guests never appear. Flipping the default is a one-line migration.
+- `get_public_profile` decides what one player may see about another: aggregate
+  stats need either the leaderboard opt-in or a shared table plus that player's
+  shared-stats setting, and per-game history additionally needs
+  `share_detailed_history`. Emails and auth identifiers are never read at all.
 - A table can be `OPEN` (everyone sees everyone's entries and investment) or
   `PRIVATE` (each player sees only their own). This is enforced in RLS, not just
   hidden in the UI — a private table returns no ledger rows for other players.

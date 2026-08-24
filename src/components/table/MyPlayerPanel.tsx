@@ -56,7 +56,10 @@ export function MyPlayerPanel({ model }: { model: TableViewModel }) {
       <div className="flex items-center gap-3">
         <Avatar name={player.displayName} src={player.avatarUrl} size="lg" ring />
         <div className="min-w-0 flex-1">
-          <p className="truncate text-lg font-black text-ink">{player.displayName}</p>
+          <div className="flex items-center gap-2">
+            <p className="truncate text-lg font-black text-ink">{player.displayName}</p>
+            {viewer.isAnonymous ? <Badge tone="neutral">אורח</Badge> : null}
+          </div>
           {player.status === 'PENDING' ? (
             <Badge tone="warn" className="mt-1">
               ממתין לאישור מנהל השולחן

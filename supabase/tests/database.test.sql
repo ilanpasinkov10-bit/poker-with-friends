@@ -318,5 +318,227 @@ begin
   perform expect(changed = 0, 'a profile update cannot reach another user''s row');
 end $$;
 
+\echo '── deleting a table that never started ──'
+do $$
+declare
+  admin  uuid := 'a0000000-0000-4000-8000-000000000001';
+  other  uuid := 'a0000000-0000-4000-8000-000000000002';
+  t_new  public.poker_tables;
+  t_done uuid;
+  seats  int;
+begin
+  perform test_as(admin);
+  t_new := public.create_poker_table('שולחן למחיקה', current_date, now(),
+             now() + interval '3 hours', 5000, 500, 6, 'AUTO_JOIN', 'OPEN', 'ADMIN_COUNT', true);
+
+  -- Someone else's table is never deletable, whatever they hold.
+  perform test_as(other);
+  perform expect_error(format('select public.delete_poker_table(%L)', t_new.id),
+    'NOT_AUTHORIZED', 'a user cannot delete another user''s table');
+
+  -- A finished game must never be erased by this path.
+  select id into t_done from public.poker_tables where status = 'COMPLETED' limit 1;
+  perform test_as(admin);
+  perform expect_error(format('select public.delete_poker_table(%L)', t_done),
+    'GAME_ALREADY_STARTED', 'a completed game cannot be deleted');
+
+  -- Nor can a game that is merely under way.
+  perform public.set_table_status(t_new.id, 'ACTIVE');
+  perform expect_error(format('select public.delete_poker_table(%L)', t_new.id),
+    'GAME_ALREADY_STARTED', 'a started game cannot be deleted');
+
+  -- An unknown id fails safely rather than doing anything surprising.
+  perform expect_error(
+    'select public.delete_poker_table(''00000000-0000-4000-8000-000000000000'')',
+    'TABLE_NOT_FOUND', 'an unknown table id is refused');
+
+  -- The permitted case: still WAITING, never started.
+  t_new := public.create_poker_table('שולחן זמני', current_date, now(),
+             now() + interval '3 hours', 5000, 500, 6, 'AUTO_JOIN', 'OPEN', 'ADMIN_COUNT', true);
+  select count(*) into seats from public.table_players where table_id = t_new.id;
+  perform expect(seats = 1, 'the throwaway table has a seat before deletion');
+
+  perform public.delete_poker_table(t_new.id);
+  perform expect((select count(*) from public.poker_tables where id = t_new.id) = 0,
+    'the owner can delete a table that never started');
+  perform expect((select count(*) from public.table_players where table_id = t_new.id) = 0,
+    'deleting cascades to its seats');
+  perform expect((select count(*) from public.buyin_transactions where table_id = t_new.id) = 0,
+    'deleting cascades to its ledger rows');
+end $$;
+
+\echo '── global leaderboard ──'
+do $$
+declare payload jsonb; rows_ jsonb; guest_rows int; ids text[];
+begin
+  perform test_as('a0000000-0000-4000-8000-000000000001');
+  payload := public.get_global_leaderboard('ALL', 100);
+  rows_ := payload -> 'rows';
+
+  perform expect(jsonb_array_length(rows_) > 0, 'the leaderboard returns ranked players');
+
+  -- Guests must never appear on the global board.
+  select count(*) into guest_rows
+    from jsonb_array_elements(rows_) r
+    join public.profiles pr on pr.id = (r ->> 'user_id')::uuid
+   where pr.is_guest;
+  perform expect(guest_rows = 0, 'guests are excluded from the global leaderboard');
+
+  -- Ranked by realised profit, descending.
+  perform expect(
+    (select bool_and(a >= b) from (
+       select (r ->> 'net_agorot')::bigint as a,
+              lead((r ->> 'net_agorot')::bigint) over () as b
+       from jsonb_array_elements(rows_) r
+     ) x where b is not null),
+    'the leaderboard is ordered by lifetime profit');
+
+  -- Opting out removes a player entirely.
+  update public.profile_privacy_settings
+     set show_on_leaderboard = false
+   where profile_id = 'a0000000-0000-4000-8000-000000000002';
+
+  select array_agg(r ->> 'user_id') into ids
+    from jsonb_array_elements(public.get_global_leaderboard('ALL', 100) -> 'rows') r;
+  perform expect(not ('a0000000-0000-4000-8000-000000000002' = any(coalesce(ids, '{}'))),
+    'a player who opted out is excluded from the leaderboard');
+
+  update public.profile_privacy_settings
+     set show_on_leaderboard = true
+   where profile_id = 'a0000000-0000-4000-8000-000000000002';
+end $$;
+
+\echo '── the leaderboard counts only finalised games ──'
+do $$
+declare admin uuid := 'a0000000-0000-4000-8000-000000000001';
+        before_net bigint; after_net bigint; t public.poker_tables;
+begin
+  perform test_as(admin);
+  select (r ->> 'net_agorot')::bigint into before_net
+    from jsonb_array_elements(public.get_global_leaderboard('ALL', 100) -> 'rows') r
+   where r ->> 'user_id' = admin::text;
+
+  -- An open table with real buy-ins must not move anyone's rank.
+  t := public.create_poker_table('משחק פתוח', current_date, now(),
+         now() + interval '3 hours', 5000, 500, 6, 'AUTO_JOIN', 'OPEN', 'ADMIN_COUNT', true);
+  perform public.set_table_status(t.id, 'ACTIVE');
+  perform public.admin_add_buyin((select id from public.table_players where table_id = t.id));
+
+  select (r ->> 'net_agorot')::bigint into after_net
+    from jsonb_array_elements(public.get_global_leaderboard('ALL', 100) -> 'rows') r
+   where r ->> 'user_id' = admin::text;
+
+  perform expect(before_net is not distinct from after_net,
+    'an unfinished game does not affect the leaderboard');
+end $$;
+
+\echo '── public profiles ──'
+do $$
+declare
+  admin uuid := 'a0000000-0000-4000-8000-000000000001';
+  other uuid := 'a0000000-0000-4000-8000-000000000003';
+  guest uuid := 'a0000000-0000-4000-8000-000000000004';
+  p jsonb;
+begin
+  perform test_as(admin);
+
+  p := public.get_public_profile(admin);
+  perform expect((p ->> 'is_self')::boolean, 'viewing yourself is marked as self');
+  perform expect((p ->> 'stats_visible')::boolean, 'you always see your own statistics');
+
+  -- No authentication identifier or contact detail may ever be returned.
+  perform expect(not (p ? 'email'), 'a public profile carries no email');
+  perform expect(not (p ? 'raw_user_meta_data'), 'a public profile carries no auth metadata');
+  perform expect(not (p::text ilike '%@example.com%'), 'no email address leaks through any field');
+
+  p := public.get_public_profile(other);
+  perform expect((p ->> 'display_name') is not null, 'a shared-table player is viewable');
+  perform expect(not (p::text ilike '%@example.com%'), 'no email leaks for another player');
+
+  -- A guest shows as a guest and gets no invented history.
+  p := public.get_public_profile(guest);
+  perform expect((p ->> 'is_guest')::boolean, 'a guest is flagged as a guest');
+  perform expect((p ->> 'member_since') is null, 'a guest has no join date shown');
+  perform expect(jsonb_array_length(p -> 'recent_games') = 0,
+    'no history is fabricated for a guest');
+end $$;
+
+\echo '── profile privacy is enforced ──'
+do $$
+declare
+  viewer uuid := 'a0000000-0000-4000-8000-000000000002';
+  target uuid := 'a0000000-0000-4000-8000-000000000003';
+  p jsonb;
+begin
+  -- Detailed history stays hidden unless its owner shares it.
+  perform test_as(viewer);
+  p := public.get_public_profile(target);
+  perform expect(not (p ->> 'history_visible')::boolean,
+    'per-game history is hidden by default');
+  perform expect(jsonb_array_length(p -> 'recent_games') = 0,
+    'no games are listed while history is private');
+
+  perform test_as(target);
+  update public.profile_privacy_settings
+     set share_detailed_history = true where profile_id = target;
+
+  perform test_as(viewer);
+  p := public.get_public_profile(target);
+  perform expect((p ->> 'history_visible')::boolean,
+    'history appears once its owner shares it');
+
+  perform test_as(target);
+  update public.profile_privacy_settings
+     set share_detailed_history = false, show_on_leaderboard = false,
+         share_stats_with_table_members = false
+   where profile_id = target;
+
+  -- Someone who shared a table still sees the person, but with every switch
+  -- off they see no numbers.
+  perform test_as(viewer);
+  p := public.get_public_profile(target);
+  perform expect((p ->> 'display_name') is not null,
+    'a former opponent can still identify the player');
+  perform expect(not (p ->> 'stats_visible')::boolean,
+    'a former opponent sees no statistics once sharing is off');
+  perform expect((p -> 'stats') = 'null'::jsonb,
+    'the statistics payload is absent, not merely hidden in the UI');
+
+  -- A true stranger — never at the same table — cannot reach it at all.
+  insert into auth.users (id, email, raw_user_meta_data)
+  values ('a0000000-0000-4000-8000-000000000006', 'stranger@example.com',
+          '{"display_name":"זר"}')
+  on conflict (id) do nothing;
+
+  perform test_as('a0000000-0000-4000-8000-000000000006');
+  perform expect_error(format('select public.get_public_profile(%L)', target),
+    'NOT_AUTHORIZED', 'a fully private profile is unreachable by a stranger');
+
+  perform test_as(target);
+  update public.profile_privacy_settings
+     set show_on_leaderboard = true, share_stats_with_table_members = true
+   where profile_id = target;
+end $$;
+
+\echo '── guests cannot reach unrelated tables ──'
+do $$
+declare t uuid; visible int;
+begin
+  select id into t from public.poker_tables where name = 'שולחן פרטי';
+
+  set local role authenticated;
+  -- רועי never joined the private table.
+  perform set_config('request.jwt.claims', '{"sub":"a0000000-0000-4000-8000-000000000005"}', true);
+  select count(*) into visible from public.poker_tables where id = t;
+  reset role;
+  perform expect(visible = 0, 'a guest cannot see a table they were not invited to');
+
+  perform test_as('a0000000-0000-4000-8000-000000000005');
+  perform expect_error(format('select public.delete_poker_table(%L)', t),
+    'NOT_AUTHORIZED', 'a guest cannot delete a table they do not own');
+  perform expect_error(format('select public.set_table_status(%L, ''ACTIVE'')', t),
+    'NOT_AUTHORIZED', 'a guest cannot drive a table they do not belong to');
+end $$;
+
 \echo ''
 \echo 'All database checks passed.'

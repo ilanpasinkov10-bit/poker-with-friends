@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { AppBar } from '@/components/layout/AppBar';
 import { PageShell } from '@/components/layout/PageShell';
+import { JoinChoice } from '@/components/join/JoinChoice';
 import { JoinTableForm } from '@/components/join/JoinTableForm';
 import { TablePreviewCard } from '@/components/join/TablePreviewCard';
 import { getSessionUser } from '@/lib/auth';
@@ -38,9 +39,12 @@ export default async function JoinTablePage({ params }: { params: Promise<{ code
   const status = table.status as TableStatus;
   const closed = status === 'COMPLETED' || status === 'CANCELLED' || status === 'COUNTING';
 
+  // Someone with a session — registered or guest — skips the choice screen.
+  const signedIn = Boolean(user);
+
   return (
     <>
-      <AppBar title="הצטרפות לשולחן" backHref="/join" />
+      <AppBar title="הוזמנת לשולחן" backHref="/join" />
       <PageShell>
         <TablePreviewCard table={{ ...table, status }} />
 
@@ -50,13 +54,21 @@ export default async function JoinTablePage({ params }: { params: Promise<{ code
           </div>
         ) : (
           <div className="mt-6">
-            <JoinTableForm
-              code={normalised}
-              tableId={table.id}
-              needsApproval={table.join_mode === 'ADMIN_APPROVAL'}
-              defaultName={user?.profile?.display_name ?? ''}
-              isSignedIn={Boolean(user)}
-            />
+            {signedIn ? (
+              <JoinTableForm
+                code={normalised}
+                tableId={table.id}
+                needsApproval={table.join_mode === 'ADMIN_APPROVAL'}
+                defaultName={user?.profile?.display_name ?? ''}
+                isSignedIn
+              />
+            ) : (
+              <JoinChoice
+                code={normalised}
+                tableId={table.id}
+                needsApproval={table.join_mode === 'ADMIN_APPROVAL'}
+              />
+            )}
           </div>
         )}
 

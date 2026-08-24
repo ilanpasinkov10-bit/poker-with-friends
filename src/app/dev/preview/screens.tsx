@@ -8,7 +8,10 @@ import SignUpPage from '@/app/auth/sign-up/page';
 import { AppBar } from '@/components/layout/AppBar';
 import { BottomNav } from '@/components/layout/BottomNav';
 import { PageShell } from '@/components/layout/PageShell';
+import { JoinChoice } from '@/components/join/JoinChoice';
 import { JoinTableForm } from '@/components/join/JoinTableForm';
+import { LeaderboardList } from '@/components/leaderboard/LeaderboardList';
+import { PeriodTabs } from '@/components/leaderboard/PeriodTabs';
 import { TablePreviewCard } from '@/components/join/TablePreviewCard';
 import { AvatarUploader } from '@/components/profile/AvatarUploader';
 import { GroupsView } from '@/components/profile/GroupsView';
@@ -30,6 +33,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { Stat } from '@/components/ui/Stat';
 import { computeLifetimeStats, summariseByGroup } from '@/lib/domain/stats';
 
+import { GLOBAL_LEADERBOARD } from './fixtures';
 import {
   HISTORY,
   JOIN_PREVIEW,
@@ -159,6 +163,20 @@ export const SCREENS: PreviewScreen[] = [
             defaultName="תמר"
             isSignedIn
           />
+        </div>
+      </Framed>
+    ),
+  },
+  {
+    id: 'join-choice',
+    label: 'הוזמנת לשולחן — בחירה',
+    group: 'כניסה והרשמה',
+    note: 'המסך החדש: התחברות לחשבון או כניסה כאורח.',
+    render: () => (
+      <Framed title="הוזמנת לשולחן">
+        <TablePreviewCard table={JOIN_PREVIEW} />
+        <div className="mt-6">
+          <JoinChoice code="A7K92" tableId="preview" needsApproval={false} />
         </div>
       </Framed>
     ),
@@ -421,6 +439,31 @@ export const SCREENS: PreviewScreen[] = [
           })}
         />
       </Framed>
+    ),
+  },
+  {
+    id: 'global-leaderboard',
+    label: 'לוח הישגים (כללי)',
+    group: 'סיום והתחשבנות',
+    note: 'הטאב החדש. דירוג לפי רווח ממשחקים שהסתיימו בלבד.',
+    render: () => (
+      <>
+        <PageShell withNav>
+          <div className="pt-2">
+            <h1 className="text-2xl font-black tracking-tight text-ink">לוח הישגים</h1>
+            <p className="mt-0.5 text-xs text-ink-faint">
+              דירוג לפי רווח מצטבר ממשחקים שהסתיימו בלבד
+            </p>
+          </div>
+          <div className="mt-4">
+            <PeriodTabs current="ALL" />
+          </div>
+          <div className="mt-5">
+            <LeaderboardList rows={GLOBAL_LEADERBOARD} />
+          </div>
+        </PageShell>
+        <BottomNav />
+      </>
     ),
   },
   {

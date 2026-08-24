@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useState } from 'react';
 import { Badge } from '@/components/ui/Badge';
 import { Card, SectionTitle } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -24,6 +25,7 @@ import { JoinCodeCard } from './JoinCodeCard';
 import { MyPlayerPanel } from './MyPlayerPanel';
 import { PendingJoinRequests, PendingRebuyRequests } from './PendingList';
 import { PlayerCard } from './PlayerCard';
+import { PublicProfileSheet } from '@/components/profile/PublicProfileSheet';
 import { ResultsPanel } from './ResultsPanel';
 
 export function TableScreen({ model }: { model: TableViewModel }) {
@@ -93,6 +95,7 @@ function TableHeader({ model, connected }: { model: TableViewModel; connected: b
 
 function LiveSection({ model }: { model: TableViewModel }) {
   const { table, viewer, players, pendingPlayers, pendingRequests, totals } = model;
+  const [profileUserId, setProfileUserId] = useState<string | null>(null);
 
   return (
     <>
@@ -146,6 +149,7 @@ function LiveSection({ model }: { model: TableViewModel }) {
                 isMe={player.id === viewer.player?.id}
                 maxBuyIns={table.max_buy_ins}
                 showMoney={model.canSeeEveryonesMoney || player.id === viewer.player?.id}
+                onOpenProfile={setProfileUserId}
                 actions={
                   viewer.isAdmin ? (
                     <AdminPlayerActions
@@ -172,6 +176,12 @@ function LiveSection({ model }: { model: TableViewModel }) {
       </section>
 
       {viewer.isAdmin ? <GameControls table={table} /> : null}
+
+      <PublicProfileSheet
+        userId={profileUserId}
+        open={profileUserId !== null}
+        onClose={() => setProfileUserId(null)}
+      />
     </>
   );
 }
