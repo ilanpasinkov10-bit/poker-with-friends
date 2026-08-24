@@ -1,0 +1,618 @@
+import type { ReactNode } from 'react';
+
+import HomePage from '@/app/page';
+import JoinCodePage from '@/app/join/page';
+import SignInPage from '@/app/auth/sign-in/page';
+import SignUpPage from '@/app/auth/sign-up/page';
+
+import { AppBar } from '@/components/layout/AppBar';
+import { BottomNav } from '@/components/layout/BottomNav';
+import { PageShell } from '@/components/layout/PageShell';
+import { JoinTableForm } from '@/components/join/JoinTableForm';
+import { TablePreviewCard } from '@/components/join/TablePreviewCard';
+import { AvatarUploader } from '@/components/profile/AvatarUploader';
+import { GroupsView } from '@/components/profile/GroupsView';
+import { HistoryView } from '@/components/profile/HistoryView';
+import { ProfileHeader } from '@/components/profile/ProfileHeader';
+import { ProfileOverview } from '@/components/profile/ProfileOverview';
+import { ProfileSettingsForm } from '@/components/profile/ProfileSettingsForm';
+import { ProfileTabs } from '@/components/profile/ProfileTabs';
+import { StatisticsView } from '@/components/profile/StatisticsView';
+import { CreateTableForm } from '@/components/table/CreateTableForm';
+import { LeaderboardView } from '@/components/table/LeaderboardView';
+import { PlayerCard } from '@/components/table/PlayerCard';
+import { TableScreen } from '@/components/table/TableScreen';
+import { Avatar } from '@/components/ui/Avatar';
+import { Badge } from '@/components/ui/Badge';
+import { Button } from '@/components/ui/Button';
+import { Card, SectionTitle } from '@/components/ui/Card';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { Stat } from '@/components/ui/Stat';
+import { computeLifetimeStats, summariseByGroup } from '@/lib/domain/stats';
+
+import {
+  HISTORY,
+  JOIN_PREVIEW,
+  LEADERBOARD,
+  PENDING_PLAYER,
+  PENDING_REBUYS,
+  PLAYERS,
+  PRIVACY_SETTINGS,
+  PROFILE,
+  RESULT_ROWS,
+  SETTLEMENT_ROWS,
+  makeModel,
+  playersWithCounts,
+} from './fixtures';
+
+export interface PreviewScreen {
+  id: string;
+  label: string;
+  group: string;
+  /** Extra guidance shown above the screen in the gallery chrome. */
+  note?: string;
+  render: () => ReactNode;
+}
+
+/** Wraps a fixture screen in the same chrome the real route provides. */
+function Framed({
+  title,
+  subtitle,
+  withNav,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  withNav?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <>
+      <AppBar title={title} subtitle={subtitle} backHref="/dev/preview" />
+      <PageShell withNav={withNav}>{children}</PageShell>
+      {withNav ? <BottomNav /> : null}
+    </>
+  );
+}
+
+function ProfileFrame({ children }: { children: ReactNode }) {
+  const stats = computeLifetimeStats(HISTORY);
+  const groups = summariseByGroup(HISTORY);
+  return (
+    <>
+      <PageShell withNav>
+        <ProfileHeader
+          name={PROFILE.displayName}
+          avatarUrl={PROFILE.avatarUrl}
+          stats={stats}
+          tableCount={groups.length}
+        />
+        <div className="mt-5">
+          <ProfileTabs />
+        </div>
+        <div className="mt-5">{children}</div>
+      </PageShell>
+      <BottomNav />
+    </>
+  );
+}
+
+export const SCREENS: PreviewScreen[] = [
+  // ---------------------------------------------------------------- entry
+  {
+    id: 'home',
+    label: 'דף הבית',
+    group: 'כניסה והרשמה',
+    note: 'הדף האמיתי, במצב לא מחובר.',
+    render: () => <HomePage />,
+  },
+  {
+    id: 'sign-in',
+    label: 'התחברות',
+    group: 'כניסה והרשמה',
+    render: () => <SignInPage searchParams={Promise.resolve({})} />,
+  },
+  {
+    id: 'sign-up',
+    label: 'הרשמה',
+    group: 'כניסה והרשמה',
+    render: () => <SignUpPage searchParams={Promise.resolve({})} />,
+  },
+  {
+    id: 'join-code',
+    label: 'הצטרפות עם קוד',
+    group: 'כניסה והרשמה',
+    render: () => <JoinCodePage />,
+  },
+  {
+    id: 'join-table',
+    label: 'הצטרפות לשולחן',
+    group: 'כניסה והרשמה',
+    note: 'המסך שרואה מי שפתח קישור הזמנה.',
+    render: () => (
+      <Framed title="הצטרפות לשולחן">
+        <TablePreviewCard table={JOIN_PREVIEW} />
+        <div className="mt-6">
+          <JoinTableForm
+            code="A7K92"
+            tableId="preview"
+            needsApproval={false}
+            defaultName=""
+            isSignedIn={false}
+          />
+        </div>
+      </Framed>
+    ),
+  },
+  {
+    id: 'join-table-approval',
+    label: 'הצטרפות — באישור מנהל',
+    group: 'כניסה והרשמה',
+    render: () => (
+      <Framed title="הצטרפות לשולחן">
+        <TablePreviewCard table={{ ...JOIN_PREVIEW, status: 'ACTIVE' }} />
+        <div className="mt-6">
+          <JoinTableForm
+            code="A7K92"
+            tableId="preview"
+            needsApproval
+            defaultName="תמר"
+            isSignedIn
+          />
+        </div>
+      </Framed>
+    ),
+  },
+  {
+    id: 'create-table',
+    label: 'פתיחת שולחן',
+    group: 'כניסה והרשמה',
+    render: () => (
+      <Framed title="פתיחת שולחן" subtitle="הגדרות ערב הפוקר">
+        <CreateTableForm defaultDate="2026-08-23" defaultStart="20:30" defaultEnd="00:30" />
+      </Framed>
+    ),
+  },
+
+  // ------------------------------------------------------------- live game
+  {
+    id: 'waiting-admin',
+    label: 'חדר המתנה (מנהל)',
+    group: 'משחק חי',
+    note: 'לפני תחילת המשחק — קוד השולחן ושיתוף.',
+    render: () => (
+      <Framed title="פוקר של יום חמישי" subtitle="ממתין להתחלה">
+        <TableScreen
+          model={makeModel({ status: 'WAITING', players: PLAYERS.slice(0, 3) })}
+        />
+      </Framed>
+    ),
+  },
+  {
+    id: 'waiting-player',
+    label: 'חדר המתנה (שחקן)',
+    group: 'משחק חי',
+    render: () => (
+      <Framed title="פוקר של יום חמישי" subtitle="ממתין להתחלה">
+        <TableScreen
+          model={makeModel({ status: 'WAITING', asAdmin: false, players: PLAYERS.slice(0, 3), viewerSeatId: 'seat-daniel' })}
+        />
+      </Framed>
+    ),
+  },
+  {
+    id: 'active-admin',
+    label: 'משחק פעיל (מנהל)',
+    group: 'משחק חי',
+    note: 'לוח הבקרה המלא: סטטיסטיקות, קוד שולחן, בקשות ורשימת שחקנים.',
+    render: () => (
+      <Framed title="פוקר של יום חמישי" subtitle="משחק פעיל">
+        <TableScreen model={makeModel({})} />
+      </Framed>
+    ),
+  },
+  {
+    id: 'active-admin-requests',
+    label: 'בקשות הצטרפות וכניסה',
+    group: 'משחק חי',
+    note: 'בקשת הצטרפות ממתינה + שתי בקשות לכניסה נוספת.',
+    render: () => (
+      <Framed title="פוקר של יום חמישי" subtitle="משחק פעיל">
+        <TableScreen
+          model={makeModel({
+            pendingPlayers: [PENDING_PLAYER],
+            pendingRequests: PENDING_REBUYS,
+          })}
+        />
+      </Framed>
+    ),
+  },
+  {
+    id: 'active-player',
+    label: 'משחק פעיל (שחקן)',
+    group: 'משחק חי',
+    note: 'ללא כלי ניהול — רק הנתונים של השחקן וכפתור כניסה נוספת.',
+    render: () => (
+      <Framed title="פוקר של יום חמישי" subtitle="משחק פעיל">
+        <TableScreen model={makeModel({ asAdmin: false, viewerSeatId: 'seat-daniel' })} />
+      </Framed>
+    ),
+  },
+  {
+    id: 'active-player-requested',
+    label: 'שחקן — בקשה ממתינה',
+    group: 'משחק חי',
+    render: () => (
+      <Framed title="פוקר של יום חמישי" subtitle="משחק פעיל">
+        <TableScreen
+          model={makeModel({
+            asAdmin: false,
+            viewerSeatId: 'seat-daniel',
+            myPendingRequestId: 'req-daniel',
+            pendingRequests: [PENDING_REBUYS[0]!],
+          })}
+        />
+      </Framed>
+    ),
+  },
+  {
+    id: 'active-player-max',
+    label: 'שחקן — הגיע למקסימום',
+    group: 'משחק חי',
+    note: '"הגעת למספר הכניסות המקסימלי" — 6 מתוך 6.',
+    render: () => (
+      <Framed title="פוקר של יום חמישי" subtitle="משחק פעיל">
+        <TableScreen
+          model={makeModel({
+            asAdmin: false,
+            viewerSeatId: 'seat-daniel',
+            players: PLAYERS.map((player) =>
+              player.id === 'seat-daniel'
+                ? { ...player, buyInCount: 6, totalPaidAgorot: 30_000, chipsIssued: 3000 }
+                : player,
+            ),
+          })}
+        />
+      </Framed>
+    ),
+  },
+  {
+    id: 'active-private',
+    label: 'שולחן פרטי (שחקן)',
+    group: 'משחק חי',
+    note: 'במצב PRIVATE שחקן רואה רק את הנתונים של עצמו.',
+    render: () => (
+      <Framed title="פוקר של יום חמישי" subtitle="משחק פעיל">
+        <TableScreen
+          model={makeModel({ asAdmin: false, viewerSeatId: 'seat-daniel', visibility: 'PRIVATE' })}
+        />
+      </Framed>
+    ),
+  },
+
+  // -------------------------------------------------------------- counting
+  {
+    id: 'counting-admin',
+    label: 'ספירה — מנהל מזין',
+    group: 'ספירת ז׳יטונים',
+    note: 'הספירה מאוזנת: 10,000 חולקו, 10,000 נספרו.',
+    render: () => (
+      <Framed title="פוקר של יום חמישי" subtitle="ספירת ז׳יטונים">
+        <TableScreen
+          model={makeModel({ status: 'COUNTING', players: playersWithCounts('approved') })}
+        />
+      </Framed>
+    ),
+  },
+  {
+    id: 'counting-mismatch',
+    label: 'ספירה — חוסר התאמה',
+    group: 'ספירת ז׳יטונים',
+    note: '"חסרים 100 ז׳יטונים בספירה" — הסיום חסום.',
+    render: () => (
+      <Framed title="פוקר של יום חמישי" subtitle="ספירת ז׳יטונים">
+        <TableScreen
+          model={makeModel({ status: 'COUNTING', players: playersWithCounts('mismatch') })}
+        />
+      </Framed>
+    ),
+  },
+  {
+    id: 'counting-partial',
+    label: 'ספירה — חסרים שחקנים',
+    group: 'ספירת ז׳יטונים',
+    note: 'שני שחקנים עדיין לא הזינו ספירה.',
+    render: () => (
+      <Framed title="פוקר של יום חמישי" subtitle="ספירת ז׳יטונים">
+        <TableScreen
+          model={makeModel({ status: 'COUNTING', players: playersWithCounts('partial') })}
+        />
+      </Framed>
+    ),
+  },
+  {
+    id: 'counting-admin-approval',
+    label: 'ספירה — אישור הגשות',
+    group: 'ספירת ז׳יטונים',
+    note: 'מצב SELF_COUNT: השחקנים הגישו, המנהל מאשר.',
+    render: () => (
+      <Framed title="פוקר של יום חמישי" subtitle="ספירת ז׳יטונים">
+        <TableScreen
+          model={makeModel({
+            status: 'COUNTING',
+            countingMode: 'SELF_COUNT',
+            players: playersWithCounts('submitted'),
+          })}
+        />
+      </Framed>
+    ),
+  },
+  {
+    id: 'counting-player',
+    label: 'ספירה — שחקן מגיש',
+    group: 'ספירת ז׳יטונים',
+    note: '"כמה ז׳יטונים נשארו לך?"',
+    render: () => (
+      <Framed title="פוקר של יום חמישי" subtitle="ספירת ז׳יטונים">
+        <TableScreen
+          model={makeModel({
+            status: 'COUNTING',
+            asAdmin: false,
+            viewerSeatId: 'seat-daniel',
+            countingMode: 'SELF_COUNT',
+          })}
+        />
+      </Framed>
+    ),
+  },
+
+  // ------------------------------------------------------------- completed
+  {
+    id: 'results-player',
+    label: 'תוצאות והתחשבנות',
+    group: 'סיום והתחשבנות',
+    note: 'המספרים מחושבים ב־computeFinalResults ו־computeSettlement האמיתיים.',
+    render: () => (
+      <Framed title="פוקר של יום חמישי" subtitle="המשחק הסתיים">
+        <TableScreen
+          model={makeModel({
+            status: 'COMPLETED',
+            asAdmin: false,
+            viewerSeatId: 'seat-daniel',
+            results: RESULT_ROWS,
+            settlements: SETTLEMENT_ROWS,
+          })}
+        />
+      </Framed>
+    ),
+  },
+  {
+    id: 'results-admin',
+    label: 'תוצאות (מנהל)',
+    group: 'סיום והתחשבנות',
+    note: 'למנהל יש סימון "שולם" ותיקון תוצאות.',
+    render: () => (
+      <Framed title="פוקר של יום חמישי" subtitle="המשחק הסתיים">
+        <TableScreen
+          model={makeModel({
+            status: 'COMPLETED',
+            results: RESULT_ROWS,
+            settlements: SETTLEMENT_ROWS,
+          })}
+        />
+      </Framed>
+    ),
+  },
+  {
+    id: 'results-guest',
+    label: 'תוצאות — אורח',
+    group: 'סיום והתחשבנות',
+    note: 'הצעת "שמור את הפרופיל שלי" לאורח בסוף המשחק.',
+    render: () => (
+      <Framed title="פוקר של יום חמישי" subtitle="המשחק הסתיים">
+        <TableScreen
+          model={makeModel({
+            status: 'COMPLETED',
+            asAdmin: false,
+            viewerSeatId: 'seat-daniel',
+            isAnonymous: true,
+            results: RESULT_ROWS,
+            settlements: SETTLEMENT_ROWS,
+          })}
+        />
+      </Framed>
+    ),
+  },
+  {
+    id: 'leaderboard',
+    label: 'דירוג השולחן',
+    group: 'סיום והתחשבנות',
+    render: () => (
+      <Framed title="דירוג השולחן" subtitle="כל המשחקים של החבר׳ה מהשכונה">
+        <LeaderboardView rows={LEADERBOARD} />
+      </Framed>
+    ),
+  },
+
+  // --------------------------------------------------------------- profile
+  {
+    id: 'profile-overview',
+    label: 'פרופיל — סקירה',
+    group: 'פרופיל שחקן',
+    note: 'כולל גרף מאזן מצטבר וגרף תוצאה לכל משחק.',
+    render: () => (
+      <ProfileFrame>
+        <ProfileOverview games={HISTORY} />
+      </ProfileFrame>
+    ),
+  },
+  {
+    id: 'profile-history',
+    label: 'היסטוריית משחקים',
+    group: 'פרופיל שחקן',
+    render: () => (
+      <ProfileFrame>
+        <HistoryView games={HISTORY} page={1} hasMore />
+      </ProfileFrame>
+    ),
+  },
+  {
+    id: 'profile-stats',
+    label: 'סטטיסטיקות ושיאים',
+    group: 'פרופיל שחקן',
+    render: () => (
+      <ProfileFrame>
+        <StatisticsView games={HISTORY} />
+      </ProfileFrame>
+    ),
+  },
+  {
+    id: 'profile-groups',
+    label: 'השולחנות שלי',
+    group: 'פרופיל שחקן',
+    render: () => (
+      <ProfileFrame>
+        <GroupsView games={HISTORY} />
+      </ProfileFrame>
+    ),
+  },
+  {
+    id: 'profile-settings',
+    label: 'הגדרות ופרטיות',
+    group: 'פרופיל שחקן',
+    note: 'העלאת תמונת פרופיל, שם תצוגה ובקרות פרטיות.',
+    render: () => (
+      <ProfileFrame>
+        <div className="grid gap-6">
+          <section>
+            <SectionTitle>תמונת פרופיל</SectionTitle>
+            <Card>
+              <AvatarUploader name={PROFILE.displayName} avatarUrl={PROFILE.avatarUrl} />
+            </Card>
+          </section>
+          <ProfileSettingsForm displayName={PROFILE.displayName} privacy={PRIVACY_SETTINGS} />
+        </div>
+      </ProfileFrame>
+    ),
+  },
+  {
+    id: 'profile-empty',
+    label: 'פרופיל ריק',
+    group: 'פרופיל שחקן',
+    note: 'מצב התחלתי לפני המשחק הראשון.',
+    render: () => (
+      <ProfileFrame>
+        <ProfileOverview games={[]} />
+      </ProfileFrame>
+    ),
+  },
+
+  // ------------------------------------------------------------ components
+  {
+    id: 'player-cards',
+    label: 'כרטיסי שחקן',
+    group: 'רכיבים',
+    note: 'כולל מצב "אני", מנהל שולחן, מקסימום כניסות ושולחן פרטי.',
+    render: () => (
+      <Framed title="כרטיסי שחקן" subtitle="גלריית רכיבים">
+        <ul className="grid gap-2">
+          <PlayerCard player={PLAYERS[0]!} showMoney isMe={false} maxBuyIns={6} />
+          <PlayerCard player={PLAYERS[2]!} showMoney isMe maxBuyIns={6} />
+          <PlayerCard
+            player={{ ...PLAYERS[1]!, buyInCount: 6, totalPaidAgorot: 30_000, chipsIssued: 3000 }}
+            showMoney
+            isMe={false}
+            maxBuyIns={6}
+          />
+          <PlayerCard player={PLAYERS[3]!} showMoney={false} isMe={false} maxBuyIns={6} />
+        </ul>
+      </Framed>
+    ),
+  },
+  {
+    id: 'avatars',
+    label: 'תמונות ואווטארים',
+    group: 'רכיבים',
+    note: 'עם תמונה שהועלתה ובלעדיה (ראשי תיבות בעברית).',
+    render: () => (
+      <Framed title="תמונות פרופיל" subtitle="גלריית רכיבים">
+        <Card className="grid gap-5">
+          <div className="flex items-end gap-3">
+            <Avatar name="אילן כהן" src={PROFILE.avatarUrl} size="xl" ring />
+            <Avatar name="אילן כהן" src={PROFILE.avatarUrl} size="lg" />
+            <Avatar name="אילן כהן" src={PROFILE.avatarUrl} size="md" />
+            <Avatar name="אילן כהן" src={PROFILE.avatarUrl} size="sm" />
+          </div>
+          <div className="flex items-end gap-3">
+            <Avatar name="אילן כהן" size="xl" ring />
+            <Avatar name="שי לוי" size="lg" />
+            <Avatar name="דניאל" size="md" />
+            <Avatar name="רועי" size="sm" />
+          </div>
+        </Card>
+      </Framed>
+    ),
+  },
+  {
+    id: 'ui-kit',
+    label: 'כפתורים, תגיות ומצבים',
+    group: 'רכיבים',
+    render: () => (
+      <Framed title="ערכת רכיבים" subtitle="גלריית רכיבים">
+        <div className="grid gap-5">
+          <Card className="grid gap-2">
+            <Button block>פעולה ראשית</Button>
+            <Button variant="secondary" block>
+              פעולה משנית
+            </Button>
+            <Button variant="success" block>
+              אשר
+            </Button>
+            <Button variant="warn" block>
+              סיים משחק
+            </Button>
+            <Button variant="danger" block>
+              דחה
+            </Button>
+            <Button variant="ghost" block>
+              פעולה שקטה
+            </Button>
+            <Button block loading>
+              נשמר…
+            </Button>
+            <Button block disabled>
+              לא זמין
+            </Button>
+          </Card>
+
+          <Card className="flex flex-wrap gap-2">
+            <Badge tone="neutral" dot>ממתין להתחלה</Badge>
+            <Badge tone="profit" dot>משחק פעיל</Badge>
+            <Badge tone="warn" dot>ספירת ז׳יטונים</Badge>
+            <Badge tone="brand" dot>המשחק הסתיים</Badge>
+            <Badge tone="loss" dot>המשחק בוטל</Badge>
+          </Card>
+
+          <div className="grid grid-cols-2 gap-2">
+            <Stat label="שחקנים" value={6} sub="שישה שחקנים" />
+            <Stat label="כניסות" value={20} />
+            <Stat label="בקופה" value="1,000₪" tone="brand" />
+            <Stat label="תוצאה" value="+100₪" tone="profit" />
+          </div>
+
+          <EmptyState
+            emoji="🪑"
+            title="עוד אין שחקנים"
+            description="שתפו את קוד השולחן כדי שהחברים יצטרפו."
+          />
+        </div>
+      </Framed>
+    ),
+  },
+];
+
+export const SCREEN_IDS = SCREENS.map((screen) => screen.id);
+
+export function findScreen(id: string | undefined): PreviewScreen | undefined {
+  return SCREENS.find((screen) => screen.id === id);
+}
