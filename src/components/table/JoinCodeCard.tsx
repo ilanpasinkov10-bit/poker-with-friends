@@ -3,12 +3,17 @@
 import { useState } from 'react';
 import { Num } from '@/components/ui/Num';
 import { useToast } from '@/components/ui/Toast';
+import { joinPath, joinUrl } from '@/lib/domain/join-link';
+import { QrJoinModal } from './QrJoinModal';
 
 /** Share panel: copy the code, copy the link, or use the native share sheet. */
 export function JoinCodeCard({ joinCode, tableName }: { joinCode: string; tableName: string }) {
   const toast = useToast();
+  const [qrOpen, setQrOpen] = useState(false);
+  // Resolved once on the client, where the origin is known. Every share
+  // action below — link, sheet and QR — uses this single value.
   const [shareUrl] = useState(() =>
-    typeof window === 'undefined' ? '' : `${window.location.origin}/join/${joinCode}`,
+    joinUrl(typeof window === 'undefined' ? null : window.location.origin, joinCode),
   );
 
   const copy = async (value: string, message: string) => {
@@ -21,7 +26,7 @@ export function JoinCodeCard({ joinCode, tableName }: { joinCode: string; tableN
   };
 
   const share = async () => {
-    const url = shareUrl || `/join/${joinCode}`;
+    const url = shareUrl;
     if (typeof navigator !== 'undefined' && navigator.share) {
       try {
         await navigator.share({
@@ -43,19 +48,30 @@ export function JoinCodeCard({ joinCode, tableName }: { joinCode: string; tableN
       <p className="text-xs font-medium text-ink-faint">קוד שולחן</p>
       <p className="ltr-num mt-1 text-4xl font-black tracking-[0.3em] text-brand-ink">{joinCode}</p>
 
-      <div className="mt-4 grid grid-cols-3 gap-2">
+      {/* Two rows rather than four columns: four 11px labels on a 320px phone
+          truncate to nothing. */}
+      <div className="mt-4 grid grid-cols-2 gap-2">
         <ShareButton onClick={() => copy(joinCode, 'הקוד הועתק')}>העתק קוד</ShareButton>
-        <ShareButton onClick={() => copy(shareUrl || `/join/${joinCode}`, 'הקישור הועתק')}>
+        <ShareButton onClick={() => copy(shareUrl, 'הקישור הועתק')}>
           העתק קישור
         </ShareButton>
+        <ShareButton onClick={() => setQrOpen(true)}>קוד QR</ShareButton>
         <ShareButton onClick={share} primary>
           שתף
         </ShareButton>
       </div>
 
+      <QrJoinModal
+        open={qrOpen}
+        onClose={() => setQrOpen(false)}
+        tableName={tableName}
+        joinCode={joinCode}
+        joinUrl={shareUrl}
+      />
+
       <p className="mt-3 text-[0.7rem] text-ink-faint">
         הקוד מאפשר להצטרף כשחקן בלבד — הרשאות ניהול נשארות אצלכם.{' '}
-        <Num>{`/join/${joinCode}`}</Num>
+        <Num>{joinPath(joinCode)}</Num>
       </p>
     </section>
   );

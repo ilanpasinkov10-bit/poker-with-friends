@@ -11,6 +11,7 @@
  * rather than numbers someone typed in.
  */
 import { computeFinalResults, type PlayerLedgerTotals } from '@/lib/domain/chips';
+import { buildTableActivity } from '@/lib/domain/activity';
 import { computePotTotals, summariseCashOut } from '@/lib/domain/participation';
 import { computeSettlement } from '@/lib/domain/settlement';
 import type { CompletedGameRecord } from '@/lib/domain/stats';
@@ -203,17 +204,20 @@ export function makeTable(overrides: Partial<PokerTableRow> = {}): PokerTableRow
     started_at: '2026-08-23T18:04:00.000Z',
     counting_started_at: null,
     completed_at: null,
+    ending_soon_notified_at: null,
     created_at: '2026-08-23T15:00:00.000Z',
     updated_at: '2026-08-23T18:04:00.000Z',
     ...overrides,
   };
 }
 
-function totalsFor(players: PlayerView[]): TableViewModel['totals'] {
+function totalsFor(players: PlayerView[], seated = players): TableViewModel['totals'] {
   const effective = (player: PlayerView) => player.approvedChips ?? player.submittedChips;
   const pot = computePotTotals(players);
   return {
-    playerCount: players.length,
+    // The roster is the seated players; every money figure covers everyone
+    // whose stake is in the game. Same split as the real loader.
+    playerCount: seated.length,
     buyInCount: players.reduce((sum, p) => sum + p.buyInCount, 0),
     potAgorot: pot.potAgorot,
     chipsIssued: players.reduce((sum, p) => sum + p.chipsIssued, 0),
@@ -221,7 +225,33 @@ function totalsFor(players: PlayerView[]): TableViewModel['totals'] {
     playersWithCount: players.filter((p) => effective(p) !== null).length,
     cashedOutAgorot: pot.cashedOutAgorot,
     activePotAgorot: pot.activePotAgorot,
+    activeChips: pot.activeChips,
   };
+}
+
+/**
+ * A ledger that matches the seats, so the activity feed in the gallery is
+ * built by the real `buildTableActivity` rather than hand-written lines.
+ */
+function ledgerFor(players: PlayerView[]) {
+  const START = Date.parse('2026-08-23T18:05:00.000Z');
+  const rows = [];
+  let step = 0;
+  for (const player of players) {
+    for (let i = 0; i < player.buyInCount; i += 1) {
+      step += 1;
+      rows.push({
+        id: `tx-${player.id}-${i}`,
+        table_player_id: player.id,
+        type: 'BUY_IN',
+        amount_agorot: ECONOMICS.buyInAgorot,
+        chips: ECONOMICS.chipsPerBuyIn,
+        created_at: new Date(START + step * 7 * 60_000).toISOString(),
+        reverses_transaction_id: null,
+      });
+    }
+  }
+  return rows;
 }
 
 export interface ModelOptions {
@@ -282,13 +312,15 @@ export function makeModel(options: ModelOptions = {}): TableViewModel {
       isAdmin: asAdmin,
       player: viewer,
       myPendingRequestId,
+      soundsEnabled: true,
     },
     players,
     leftPlayers,
     participants,
     pendingPlayers,
     pendingRequests,
-    totals: totalsFor(participants),
+    totals: totalsFor(participants, players),
+    recentActivity: buildTableActivity(participants, ledgerFor(participants)),
     canSeeEveryonesMoney: asAdmin || visibility === 'OPEN',
     results,
     settlements,
@@ -380,6 +412,8 @@ export const PRIVACY_SETTINGS: ProfilePrivacyRow = {
   share_stats_with_table_members: true,
   share_detailed_history: false,
   show_on_leaderboard: false,
+  push_notifications_enabled: true,
+  game_sounds_enabled: true,
   updated_at: '2026-08-23T10:00:00.000Z',
 };
 

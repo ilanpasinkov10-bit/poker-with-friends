@@ -6,18 +6,14 @@ import { Badge } from '@/components/ui/Badge';
 import { Card, SectionTitle } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Num } from '@/components/ui/Num';
-import { Stat } from '@/components/ui/Stat';
 import { cn } from '@/lib/cn';
 import { formatChips, formatDate, formatMoney } from '@/lib/format';
 import { useTableRealtime } from '@/lib/hooks/useTableRealtime';
-import {
-  TABLE_STATUS_LABEL,
-  TABLE_STATUS_TONE,
-  buyInsWord,
-  playersWord,
-} from '@/lib/labels';
+import { useTableSounds } from '@/lib/hooks/useTableSounds';
+import { TABLE_STATUS_LABEL, TABLE_STATUS_TONE, playersWord } from '@/lib/labels';
 import type { TableViewModel } from '@/lib/data/table';
 import { AdminPlayerActions } from './AdminPlayerActions';
+import { LivePot } from './LivePot';
 import { Countdown } from './Countdown';
 import { CountingPanel } from './CountingPanel';
 import { GameControls } from './GameControls';
@@ -30,6 +26,7 @@ import { ResultsPanel } from './ResultsPanel';
 
 export function TableScreen({ model }: { model: TableViewModel }) {
   const { connected } = useTableRealtime(model.table.id);
+  useTableSounds(model, viewerWantsSound(model));
   const { table, viewer } = model;
 
   const live = table.status === 'WAITING' || table.status === 'ACTIVE';
@@ -103,24 +100,10 @@ function LiveSection({ model }: { model: TableViewModel }) {
         <Countdown endAt={table.planned_end_at} />
       </Card>
 
+      {model.canSeeEveryonesMoney ? <LivePot model={model} /> : null}
+
       {viewer.isAdmin ? (
         <>
-          <div className="grid grid-cols-2 gap-2">
-            <Stat label="שחקנים" value={totals.playerCount} sub={playersWord(totals.playerCount)} />
-            <Stat label="כניסות" value={totals.buyInCount} sub={buyInsWord(totals.buyInCount)} />
-            <Stat
-              label="בקופה"
-              value={formatMoney(totals.activePotAgorot)}
-              tone="brand"
-              sub={
-                totals.cashedOutAgorot > 0
-                  ? `מתוך ${formatMoney(totals.potAgorot)} · נפדו ${formatMoney(totals.cashedOutAgorot)}`
-                  : undefined
-              }
-            />
-            <Stat label="ז׳יטונים בשולחן" value={formatChips(totals.chipsIssued)} />
-          </div>
-
           <JoinCodeCard joinCode={table.join_code} tableName={table.name} />
 
           <PendingJoinRequests tableId={table.id} players={pendingPlayers} />
@@ -235,4 +218,14 @@ function NotSeated({ tableId }: { tableId: string }) {
       </Link>
     </Card>
   );
+}
+
+/**
+ * Sounds are the player's own setting, and there is nobody to play them for
+ * when the viewer is only spectating as an admin without a seat.
+ */
+function viewerWantsSound(model: TableViewModel): boolean {
+  if (!model.viewer.soundsEnabled) return false;
+  const live = model.table.status === 'WAITING' || model.table.status === 'ACTIVE';
+  return live && (model.viewer.player !== null || model.viewer.isAdmin);
 }

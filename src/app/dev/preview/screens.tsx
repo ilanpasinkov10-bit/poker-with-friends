@@ -21,7 +21,10 @@ import { ProfileOverview } from '@/components/profile/ProfileOverview';
 import { ProfileSettingsForm } from '@/components/profile/ProfileSettingsForm';
 import { ProfileTabs } from '@/components/profile/ProfileTabs';
 import { StatisticsView } from '@/components/profile/StatisticsView';
+import { NotificationSettings } from '@/components/notifications/NotificationSettings';
 import { AppearanceControl } from '@/components/theme/AppearanceControl';
+import { JoinCodeCard } from '@/components/table/JoinCodeCard';
+import { LivePot } from '@/components/table/LivePot';
 import { CreateTableForm } from '@/components/table/CreateTableForm';
 import { LeaderboardView } from '@/components/table/LeaderboardView';
 import { PlayerCard } from '@/components/table/PlayerCard';
@@ -245,6 +248,28 @@ export const SCREENS: PreviewScreen[] = [
             pendingRequests: PENDING_REBUYS,
           })}
         />
+      </Framed>
+    ),
+  },
+  {
+    id: 'live-pot',
+    label: 'קופה חיה',
+    group: 'משחק חי',
+    note: 'הסכום שעדיין במשחק הוא הגיבור. מתחתיו סך הכניסות, מה שנפדה, ז׳יטונים פעילים, שחקנים וכניסות — ופעילות אחרונה.',
+    render: () => (
+      <Framed title="פוקר של יום חמישי" subtitle="קופה חיה">
+        <LivePot model={makeModel({ players: SEATED_PLAYERS, leftPlayers: LEFT_PLAYERS })} />
+      </Framed>
+    ),
+  },
+  {
+    id: 'qr-join',
+    label: 'שיתוף וקוד QR',
+    group: 'משחק חי',
+    note: 'כפתור "קוד QR" פותח מודאל עם הקוד. הוא מצביע בדיוק לקישור ההצטרפות הקיים — /join/A7K92.',
+    render: () => (
+      <Framed title="פוקר של יום חמישי" subtitle="שיתוף">
+        <JoinCodeCard joinCode="A7K92" tableName="פוקר של יום חמישי" />
       </Framed>
     ),
   },
@@ -550,6 +575,20 @@ export const SCREENS: PreviewScreen[] = [
           <ProfileSettingsForm displayName={PROFILE.displayName} privacy={PRIVACY_SETTINGS} />
         </div>
       </ProfileFrame>
+    ),
+  },
+  {
+    id: 'notifications',
+    label: 'התראות וצלילים',
+    group: 'פרופיל',
+    note: 'שתי הגדרות נפרדות, שתיהן דולקות כברירת מחדל. בדפדפן ללא תמיכה בהתראות תוצג הערה מתחת למתג.',
+    render: () => (
+      <Framed title="הגדרות" subtitle="התראות וצלילים">
+        <section>
+          <SectionTitle>התראות וצלילים</SectionTitle>
+          <NotificationSettings pushEnabled soundsEnabled />
+        </section>
+      </Framed>
     ),
   },
   {

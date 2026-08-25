@@ -1,6 +1,8 @@
 import 'server-only';
 
 import { notFound } from 'next/navigation';
+import { buildTableActivity } from '@/lib/domain/activity';
+import type { TableEvent } from '@/lib/domain/events';
 import {
   hasLeftTable,
   isStillSeated,
@@ -66,6 +68,8 @@ export interface TableViewModel {
     isAdmin: boolean;
     player: PlayerView | null;
     myPendingRequestId: string | null;
+    /** This player's own switch for in-app event sounds. */
+    soundsEnabled: boolean;
   };
   /** Still seated and able to act. */
   players: PlayerView[];
@@ -86,7 +90,11 @@ export interface TableViewModel {
     cashedOutAgorot: number;
     /** What is still in play: the pot minus everything cashed out. */
     activePotAgorot: number;
+    /** Chips still in front of the seated players. */
+    activeChips: number;
   };
+  /** Newest first. Derived from the seats and the ledger, never stored. */
+  recentActivity: TableEvent[];
   canSeeEveryonesMoney: boolean;
   results: GameResultRow[];
   settlements: SettlementRow[];
@@ -111,8 +119,16 @@ export async function loadTableView(
     .maybeSingle();
   if (!table) notFound();
 
-  const [playersRes, totalsRes, requestsRes, countsRes, ledgerRes, resultsRes, settlementsRes] =
-    await Promise.all([
+  const [
+    playersRes,
+    totalsRes,
+    requestsRes,
+    countsRes,
+    ledgerRes,
+    resultsRes,
+    settlementsRes,
+    soundsRes,
+  ] = await Promise.all([
       supabase.from('table_players').select('*').eq('table_id', tableId).order('joined_at'),
       supabase.from('table_player_totals').select('*').eq('table_id', tableId),
       supabase
@@ -133,7 +149,13 @@ export async function loadTableView(
       table.status === 'COMPLETED'
         ? supabase.from('settlements').select('*').eq('table_id', tableId)
         : Promise.resolve({ data: [] as SettlementRow[] }),
-    ]);
+      // Own row only — RLS allows nothing else, which is all that is needed.
+      supabase
+        .from('profile_privacy_settings')
+        .select('game_sounds_enabled')
+        .eq('profile_id', viewerId)
+        .maybeSingle(),
+  ]);
 
   const playerRows = (playersRes.data ?? []) as TablePlayerRow[];
   const userIds = [...new Set(playerRows.map((p) => p.user_id).filter((id): id is string => !!id))];
@@ -232,6 +254,9 @@ export async function loadTableView(
       isAdmin,
       player: myPlayer,
       myPendingRequestId: myPendingRequest?.id ?? null,
+      // Defaults on, matching the column default: a missing settings row must
+      // behave like a freshly created one.
+      soundsEnabled: soundsRes.data?.game_sounds_enabled ?? true,
     },
     players,
     leftPlayers,
@@ -250,7 +275,9 @@ export async function loadTableView(
       playersWithCount: participants.filter((p) => effectiveChips(p) !== null).length,
       cashedOutAgorot: pot.cashedOutAgorot,
       activePotAgorot: pot.activePotAgorot,
+      activeChips: pot.activeChips,
     },
+    recentActivity: buildTableActivity(participants, ledger),
     canSeeEveryonesMoney: isAdmin || table.player_visibility === 'OPEN',
     results: (resultsRes.data ?? []) as GameResultRow[],
     settlements: (settlementsRes.data ?? []) as SettlementRow[],
