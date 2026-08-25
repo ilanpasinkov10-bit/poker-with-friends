@@ -1,11 +1,14 @@
 'use client';
 
+import { useState } from 'react';
 import { Num } from '@/components/ui/Num';
 import { cn } from '@/lib/cn';
+import { ACTIVITY_PREVIEW_COUNT } from '@/lib/domain/activity';
 import { EVENT_ICON, eventSentence, type TableEvent } from '@/lib/domain/events';
 import { formatChips, formatMoney, formatTime } from '@/lib/format';
 import { buyInsWord, playersWord } from '@/lib/labels';
 import type { TableViewModel } from '@/lib/data/table';
+import { ActivityHistorySheet } from './ActivityHistorySheet';
 
 /**
  * The live pot — the one number everyone at the table looks up to check.
@@ -104,19 +107,24 @@ function PotStat({
 /**
  * What just happened, newest first.
  *
+ * Only the last few lines live on the card. A busy table generates an event
+ * every couple of minutes, and an inline list of all of them pushed the pot —
+ * the number people actually open this screen for — off the top. The rest is
+ * one tap away rather than gone.
+ *
  * Derived from the seats and the ledger rather than recorded separately, so it
  * can never disagree with the numbers above it.
  */
 function RecentActivity({ events }: { events: readonly TableEvent[] }) {
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const preview = events.slice(0, ACTIVITY_PREVIEW_COUNT);
+
   return (
     <div className="mt-4 border-t border-line-soft pt-3">
       <h3 className="mb-2 text-xs font-semibold text-ink-muted">פעילות אחרונה</h3>
       <ul className="grid gap-1.5">
-        {events.map((event) => (
-          <li
-            key={`${event.kind}-${event.at}-${'playerName' in event ? event.playerName : ''}`}
-            className="flex items-start gap-2 text-xs"
-          >
+        {preview.map((event) => (
+          <li key={event.id} className="flex items-start gap-2 text-xs">
             <span aria-hidden className="shrink-0 leading-5">
               {EVENT_ICON[event.kind]}
             </span>
@@ -127,6 +135,22 @@ function RecentActivity({ events }: { events: readonly TableEvent[] }) {
           </li>
         ))}
       </ul>
+
+      {events.length > preview.length ? (
+        <button
+          type="button"
+          onClick={() => setHistoryOpen(true)}
+          className="mt-2 min-h-11 w-full rounded-xl border border-line bg-surface-2 text-xs font-semibold text-ink-muted transition-colors hover:bg-surface-3 hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+        >
+          ראה עוד פעילות
+        </button>
+      ) : null}
+
+      <ActivityHistorySheet
+        open={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        events={events}
+      />
     </div>
   );
 }

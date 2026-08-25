@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { buildTableActivity, type ActivityLedgerRow } from '@/lib/domain/activity';
-import { eventSentence, notificationCopy, sortEvents } from '@/lib/domain/events';
+import {
+  EVENT_SOUND,
+  eventSentence,
+  eventToast,
+  notificationCopy,
+  sortEvents,
+  TABLE_EVENT_KINDS,
+  type TableEvent,
+} from '@/lib/domain/events';
 import { isScannable, joinPath, joinUrl } from '@/lib/domain/join-link';
 import {
   isReminderDue,
@@ -8,7 +16,7 @@ import {
   type ReminderState,
 } from '@/lib/domain/ending-soon';
 import { computePotTotals } from '@/lib/domain/participation';
-import { soundsForChange, type TableSnapshot } from '@/lib/domain/table-diff';
+import { alertsForChange, type AlertSnapshot } from '@/lib/domain/table-alerts';
 
 /**
  * The event vocabulary shared by the push notifications, the in-app sounds and
@@ -21,7 +29,7 @@ import { soundsForChange, type TableSnapshot } from '@/lib/domain/table-diff';
 // ---------------------------------------------------------------------------
 describe('notification wording', () => {
   it('announces an arrival', () => {
-    expect(eventSentence({ kind: 'PLAYER_JOINED', at: NOW, playerName: 'מאור' })).toBe(
+    expect(eventSentence({ id: 'j', kind: 'PLAYER_JOINED', at: NOW, playerName: 'מאור' })).toBe(
       'מאור הצטרף לשולחן',
     );
   });
@@ -29,6 +37,7 @@ describe('notification wording', () => {
   it('announces a departure with the chips and what they are worth', () => {
     expect(
       eventSentence({
+        id: 'l',
         kind: 'PLAYER_LEFT',
         at: NOW,
         playerName: 'ליאור',
@@ -41,6 +50,7 @@ describe('notification wording', () => {
   it('announces an additional entry with its cost and chips', () => {
     expect(
       eventSentence({
+        id: 'b',
         kind: 'BUY_IN',
         at: NOW,
         playerName: 'דני',
@@ -52,7 +62,7 @@ describe('notification wording', () => {
 
   it('puts the table name in the title so two games are distinguishable', () => {
     const copy = notificationCopy(
-      { kind: 'PLAYER_JOINED', at: NOW, playerName: 'מאור' },
+      { id: 'j', kind: 'PLAYER_JOINED', at: NOW, playerName: 'מאור' },
       'פוקר של יום חמישי',
     );
     expect(copy.title).toBe('פוקר של יום חמישי');
@@ -61,9 +71,9 @@ describe('notification wording', () => {
 
   it('has a sentence for every kind, so none can ship empty', () => {
     const samples = [
-      { kind: 'GAME_STARTED', at: NOW, tableName: 'ט' },
-      { kind: 'ENDING_SOON', at: NOW, tableName: 'ט' },
-      { kind: 'GAME_ENDED', at: NOW, tableName: 'ט' },
+      { id: 's', kind: 'GAME_STARTED', at: NOW, tableName: 'ט' },
+      { id: 'e', kind: 'ENDING_SOON', at: NOW, tableName: 'ט' },
+      { id: 'g', kind: 'GAME_ENDED', at: NOW, tableName: 'ט' },
     ] as const;
     for (const event of samples) expect(eventSentence(event).length).toBeGreaterThan(0);
   });
@@ -74,8 +84,8 @@ const NOW = '2026-08-23T20:00:00.000Z';
 describe('ordering the feed', () => {
   it('puts the newest first', () => {
     const ordered = sortEvents([
-      { kind: 'PLAYER_JOINED', at: '2026-08-23T20:00:00.000Z', playerName: 'א' },
-      { kind: 'PLAYER_JOINED', at: '2026-08-23T21:00:00.000Z', playerName: 'ב' },
+      { id: 'a', kind: 'PLAYER_JOINED', at: '2026-08-23T20:00:00.000Z', playerName: 'א' },
+      { id: 'b', kind: 'PLAYER_JOINED', at: '2026-08-23T21:00:00.000Z', playerName: 'ב' },
     ]);
     expect(ordered.map((e) => 'playerName' in e && e.playerName)).toEqual(['ב', 'א']);
   });
@@ -84,14 +94,15 @@ describe('ordering the feed', () => {
     // A join and its opening entry commit together. A list that reshuffled on
     // every realtime refresh would read as broken.
     const events = [
-      { kind: 'BUY_IN', at: NOW, playerName: 'א', amountAgorot: 5_000, chips: 500 },
-      { kind: 'PLAYER_JOINED', at: NOW, playerName: 'א' },
+      { id: 'buyin:1', kind: 'BUY_IN', at: NOW, playerName: 'א', amountAgorot: 5_000, chips: 500 },
+      { id: 'join:1', kind: 'PLAYER_JOINED', at: NOW, playerName: 'א' },
     ] as const;
     expect(sortEvents(events)).toEqual(sortEvents([...events].reverse()));
   });
 
   it('caps the list', () => {
     const many = Array.from({ length: 30 }, (_, i) => ({
+      id: `join:${i}`,
       kind: 'PLAYER_JOINED' as const,
       at: new Date(Date.parse(NOW) + i * 1000).toISOString(),
       playerName: `p${i}`,
@@ -111,6 +122,7 @@ function tx(over: Partial<ActivityLedgerRow> & { id: string; player: string }): 
     amount_agorot: over.amount_agorot ?? 5_000,
     chips: over.chips ?? 500,
     created_at: over.created_at ?? NOW,
+    created_by: over.created_by ?? 'admin-user',
     reverses_transaction_id: over.reverses_transaction_id ?? null,
   };
 }
@@ -118,6 +130,7 @@ function tx(over: Partial<ActivityLedgerRow> & { id: string; player: string }): 
 describe('the recent-activity feed', () => {
   const seat = {
     id: 'seat-a',
+    userId: 'user-dani',
     displayName: 'דני',
     joinedAt: '2026-08-23T18:00:00.000Z',
     leftAt: null,
@@ -199,91 +212,6 @@ describe('the recent-activity feed', () => {
       [],
     );
     expect(events.some((e) => e.kind === 'PLAYER_LEFT')).toBe(false);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Which sound a change owes
-// ---------------------------------------------------------------------------
-function snap(over: Partial<TableSnapshot> = {}): TableSnapshot {
-  return { status: 'ACTIVE', seatedIds: [], leftIds: [], buyInCount: 0, ...over };
-}
-
-describe('sounds for a change', () => {
-  it('is silent when nothing changed', () => {
-    const s = snap({ seatedIds: ['a', 'b'], buyInCount: 4 });
-    expect(soundsForChange(s, s)).toEqual([]);
-  });
-
-  it('shuffles cards when the game starts', () => {
-    expect(soundsForChange(snap({ status: 'WAITING' }), snap({ status: 'ACTIVE' }))).toEqual([
-      'GAME_STARTED',
-    ]);
-  });
-
-  it('does not shuffle again while the game stays active', () => {
-    expect(soundsForChange(snap({ status: 'ACTIVE' }), snap({ status: 'ACTIVE' }))).toEqual([]);
-  });
-
-  it('seats a chair for a new player, without rattling chips', () => {
-    // The new seat brings its opening entry with it; only entries beyond that
-    // are additional entries.
-    expect(
-      soundsForChange(
-        snap({ seatedIds: ['a'], buyInCount: 1 }),
-        snap({ seatedIds: ['a', 'b'], buyInCount: 2 }),
-      ),
-    ).toEqual(['PLAYER_JOINED']);
-  });
-
-  it('rattles chips for a genuine additional entry', () => {
-    expect(
-      soundsForChange(
-        snap({ seatedIds: ['a'], buyInCount: 1 }),
-        snap({ seatedIds: ['a'], buyInCount: 2 }),
-      ),
-    ).toEqual(['BUY_IN']);
-  });
-
-  it('plays both when someone joins and someone else buys in', () => {
-    expect(
-      soundsForChange(
-        snap({ seatedIds: ['a'], buyInCount: 1 }),
-        snap({ seatedIds: ['a', 'b'], buyInCount: 3 }),
-      ),
-    ).toEqual(['PLAYER_JOINED', 'BUY_IN']);
-  });
-
-  it('says goodbye once when a player leaves', () => {
-    // Leaving moves the id from seated to left. Counting the disappearance
-    // from `seatedIds` as a departure too would sound it twice.
-    expect(
-      soundsForChange(
-        snap({ seatedIds: ['a', 'b'], buyInCount: 2 }),
-        snap({ seatedIds: ['a'], leftIds: ['b'], buyInCount: 2 }),
-      ),
-    ).toEqual(['PLAYER_LEFT']);
-  });
-
-  it('does not treat an already-departed player as leaving again', () => {
-    const gone = snap({ seatedIds: ['a'], leftIds: ['b'], buyInCount: 2 });
-    expect(soundsForChange(gone, gone)).toEqual([]);
-  });
-
-  it('never plays a departure for a player who was never seated', () => {
-    // Opening a table where someone had already left must not fire a cue.
-    expect(
-      soundsForChange(snap({ seatedIds: ['a'] }), snap({ seatedIds: ['a'], leftIds: ['z'] })),
-    ).toEqual([]);
-  });
-
-  it('ignores a buy-in count that goes down, as a reversal makes it', () => {
-    expect(
-      soundsForChange(
-        snap({ seatedIds: ['a'], buyInCount: 3 }),
-        snap({ seatedIds: ['a'], buyInCount: 2 }),
-      ),
-    ).toEqual([]);
   });
 });
 
@@ -463,5 +391,203 @@ describe('when an open client watches for the reminder', () => {
       const t = table({ plannedEndAt: endingIn(minutes) });
       if (isReminderDue(t, NOW)) expect(shouldWatchForReminder(t, NOW)).toBe(true);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A cancelled entry
+// ---------------------------------------------------------------------------
+describe('cancelling a player’s latest entry', () => {
+  const seat = {
+    id: 'seat-a',
+    userId: 'user-dani',
+    displayName: 'אילן פסינקוב',
+    joinedAt: '2026-08-23T18:00:00.000Z',
+    leftAt: null,
+    cashOut: null,
+  };
+
+  const withReversal = () =>
+    buildTableActivity(
+      [seat],
+      [
+        tx({ id: 'tx1', player: 'seat-a', created_at: '2026-08-23T18:00:00.000Z' }),
+        tx({ id: 'tx2', player: 'seat-a', created_at: '2026-08-23T19:00:00.000Z' }),
+        tx({
+          id: 'tx3',
+          player: 'seat-a',
+          type: 'REVERSAL',
+          amount_agorot: -5_000,
+          chips: -500,
+          created_at: '2026-08-23T19:05:00.000Z',
+          created_by: 'user-admin',
+          reverses_transaction_id: 'tx2',
+        }),
+      ],
+    );
+
+  it('is reported, unlike the entry it cancelled', () => {
+    // The refunded entry did not happen as far as the money is concerned, but
+    // the admin cancelling it in front of everyone is something to show.
+    const kinds = withReversal().map((e) => e.kind);
+    expect(kinds).toContain('BUY_IN_REVERSED');
+    expect(kinds).not.toContain('BUY_IN');
+  });
+
+  it('reads as a refund, with the sign flipped from the ledger', () => {
+    const event = withReversal().find((e) => e.kind === 'BUY_IN_REVERSED');
+    expect(event).toMatchObject({ refundedAgorot: 5_000, refundedChips: 500 });
+    expect(eventSentence(event!)).toBe(
+      'המנהל ביטל את הכניסה האחרונה של אילן פסינקוב והחזיר 50₪',
+    );
+  });
+
+  it('credits the admin as the actor and the player as the subject', () => {
+    // This is what keeps the toast away from the admin, who already saw their
+    // own "הכניסה בוטלה" confirmation.
+    const event = withReversal().find((e) => e.kind === 'BUY_IN_REVERSED');
+    expect(event).toMatchObject({ actorUserId: 'user-admin', subjectUserId: 'user-dani' });
+  });
+
+  it('does not disturb which entry counts as the opening one', () => {
+    // The cancelled entry is skipped before counting, so the player's first
+    // surviving entry is still their join and is not reported twice.
+    const events = withReversal();
+    expect(events.filter((e) => e.kind === 'PLAYER_JOINED')).toHaveLength(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// What the open app announces
+// ---------------------------------------------------------------------------
+function ev(over: Partial<TableEvent> & { id: string }): TableEvent {
+  return {
+    kind: 'PLAYER_JOINED',
+    at: NOW,
+    playerName: 'דני',
+    ...over,
+  } as TableEvent;
+}
+const snapshot = (over: Partial<AlertSnapshot> = {}): AlertSnapshot => ({
+  status: 'ACTIVE',
+  events: [],
+  ...over,
+});
+
+describe('announcing a change to the open app', () => {
+  it('says nothing on the first render', () => {
+    // Opening a table with twenty entries behind it must not fire twenty
+    // toasts and twenty sounds at once.
+    expect(alertsForChange(null, snapshot({ events: [ev({ id: 'a' }), ev({ id: 'b' })] }), null))
+      .toEqual([]);
+  });
+
+  it('announces only what is new', () => {
+    const before = snapshot({ events: [ev({ id: 'a' })] });
+    const after = snapshot({ events: [ev({ id: 'b' }), ev({ id: 'a' })] });
+    expect(alertsForChange(before, after, null).map((e) => e.id)).toEqual(['b']);
+  });
+
+  it('never repeats an event that is still in the feed', () => {
+    // The feed is rebuilt from scratch on every realtime refresh, so without
+    // stable ids an unchanged list would re-announce itself indefinitely.
+    const same = snapshot({ events: [ev({ id: 'a' }), ev({ id: 'b' })] });
+    expect(alertsForChange(same, same, null)).toEqual([]);
+  });
+
+  it('stays quiet towards whoever caused it', () => {
+    // They are already looking at the confirmation their own action produced.
+    const before = snapshot({ events: [] });
+    const after = snapshot({ events: [ev({ id: 'a', actorUserId: 'me' })] });
+    expect(alertsForChange(before, after, 'me')).toEqual([]);
+    expect(alertsForChange(before, after, 'someone-else').map((e) => e.id)).toEqual(['a']);
+  });
+
+  it('stays quiet towards the person it is about', () => {
+    // Nobody needs telling that they themselves joined or left.
+    const before = snapshot({ events: [] });
+    const after = snapshot({ events: [ev({ id: 'a', subjectUserId: 'me' })] });
+    expect(alertsForChange(before, after, 'me')).toEqual([]);
+  });
+
+  it('announces to a guest, who has no id to match against', () => {
+    const before = snapshot({ events: [] });
+    const after = snapshot({ events: [ev({ id: 'a', actorUserId: 'someone' })] });
+    expect(alertsForChange(before, after, null).map((e) => e.id)).toEqual(['a']);
+  });
+
+  it('announces the game starting, which has no feed row of its own', () => {
+    const alerts = alertsForChange(snapshot({ status: 'WAITING' }), snapshot(), null);
+    expect(alerts.map((e) => e.kind)).toEqual(['GAME_STARTED']);
+  });
+
+  it('does not announce the start again while the game runs', () => {
+    expect(alertsForChange(snapshot(), snapshot(), null)).toEqual([]);
+  });
+
+  it('announces a burst in the order it happened', () => {
+    const before = snapshot({ events: [] });
+    const after = snapshot({
+      events: [
+        ev({ id: 'second', at: '2026-08-23T20:05:00.000Z' }),
+        ev({ id: 'first', at: '2026-08-23T20:01:00.000Z' }),
+      ],
+    });
+    expect(alertsForChange(before, after, null).map((e) => e.id)).toEqual(['first', 'second']);
+  });
+});
+
+describe('toast wording', () => {
+  it('is shorter than the feed line, and keeps the money', () => {
+    expect(
+      eventToast({ id: 'b', kind: 'BUY_IN', at: NOW, playerName: 'דני', amountAgorot: 5_000, chips: 500 }),
+    ).toBe('דני נכנס בעוד 50₪');
+    expect(
+      eventToast({
+        id: 'l',
+        kind: 'PLAYER_LEFT',
+        at: NOW,
+        playerName: 'ליאור',
+        finalChips: 1_500,
+        finalValueAgorot: 15_000,
+      }),
+    ).toBe('ליאור עזב עם 150₪');
+    expect(
+      eventToast({
+        id: 'r',
+        kind: 'BUY_IN_REVERSED',
+        at: NOW,
+        playerName: 'אילן',
+        refundedAgorot: 5_000,
+        refundedChips: 500,
+      }),
+    ).toBe('המנהל ביטל את הכניסה האחרונה של אילן');
+  });
+
+  it('has wording for every kind, so a toast can never be blank', () => {
+    for (const kind of TABLE_EVENT_KINDS) {
+      const event = ev({ id: 'x', kind } as Partial<TableEvent> & { id: string });
+      expect(eventToast(event).length).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe('the sound each event owes', () => {
+  it('covers every kind, so none can fall through silently by accident', () => {
+    for (const kind of TABLE_EVENT_KINDS) {
+      expect(kind in EVENT_SOUND).toBe(true);
+    }
+  });
+
+  it('gives a cancelled entry the departure sound, not the chip rattle', () => {
+    // Reusing the rattle would make an undo sound exactly like the thing it
+    // undoes.
+    expect(EVENT_SOUND.BUY_IN_REVERSED).toBe('PLAYER_LEFT');
+    expect(EVENT_SOUND.BUY_IN).toBe('BUY_IN');
+  });
+
+  it('leaves the notification-only events silent', () => {
+    expect(EVENT_SOUND.ENDING_SOON).toBeNull();
+    expect(EVENT_SOUND.GAME_ENDED).toBeNull();
   });
 });
