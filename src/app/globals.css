@@ -138,6 +138,43 @@
     font-size: 16px;
   }
 
+  /* -------------------------------------------------------------------------
+     Native date and time fields.
+
+     Safari — iOS Safari in particular — sizes these controls to their own
+     native widget and ignores `width: 100%`. The box then comes out wider than
+     the card holding it: on an iPhone the date ran off the edge of the screen
+     and the two time fields overlapped each other. Resetting `appearance` is
+     what stops that; it makes the control an ordinary box that honours the
+     width we give it, while tapping still opens the native picker.
+
+     The value is drawn in a shadow pseudo-element that Safari right-aligns and
+     gives no intrinsic height, so it is aligned to the start and given a
+     minimum height here too — otherwise the field can collapse once the native
+     appearance is gone.
+     ------------------------------------------------------------------------- */
+  input[type='date'],
+  input[type='time'] {
+    -webkit-appearance: none;
+    appearance: none;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  input[type='date']::-webkit-date-and-time-value,
+  input[type='time']::-webkit-date-and-time-value {
+    text-align: start;
+    min-height: 1.25rem;
+  }
+
+  /* The picker glyph is Chromium-only; keep it inside the box rather than
+     letting it push the value out. */
+  input[type='date']::-webkit-calendar-picker-indicator,
+  input[type='time']::-webkit-calendar-picker-indicator {
+    flex: none;
+    margin-inline-start: auto;
+  }
+
   ::-webkit-scrollbar {
     width: 8px;
     height: 8px;

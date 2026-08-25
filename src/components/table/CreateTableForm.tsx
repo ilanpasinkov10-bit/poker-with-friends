@@ -135,16 +135,18 @@ export function CreateTableForm({
           />
         </Field>
 
-        {/* Two columns only while the card is wide enough for two native time
-            widgets — a container query rather than a device width, because
-            what has to fit is this row inside this card, not the phone.
-            Two of them need 262px (see Field.tsx); the threshold is set well
-            above that because Safari draws these controls wider than the
-            Chromium the measurement came from, and a stacked row is never
-            wrong while a cramped one is. In practice: side by side from a
-            375px phone up, stacked below. */}
+        {/* Stacked on every phone; two columns only from tablet width up.
+            A container query rather than a device width, because what has to
+            fit is this row inside this card. The earlier, tighter threshold
+            was set from Chromium's measurements (262px for the pair) and was
+            wrong on a real iPhone, where the native time widget is
+            substantially wider and the two fields ended up overlapping. There
+            is no reliable way to measure Safari's control from here, so the
+            row now only pairs when there is room to spare — 26rem, which no
+            phone reaches and every tablet and desktop does. A stacked row is
+            never wrong; a cramped one is. */}
         <div className="@container">
-          <div className="grid gap-3 @min-[19rem]:grid-cols-2">
+          <div className="grid gap-3 @min-[26rem]:grid-cols-2">
             <Field label="שעת התחלה" htmlFor="startTime">
               <TextInput
                 id="startTime"

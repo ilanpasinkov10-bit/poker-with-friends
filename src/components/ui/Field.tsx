@@ -23,14 +23,14 @@ const CONTROL =
  * `lang` asks for the Israeli formatting the rest of the app uses. It is only
  * a hint: every engine measured here takes the format from its own locale
  * settings and ignores the attribute, so the layout cannot assume the narrow
- * 24-hour form and must survive the wide 12-hour one. It does — the row stacks
- * before the columns get that tight. The trimmed padding buys the native
- * widget a little more room without shrinking the tap target.
+ * 24-hour form and must survive the wide 12-hour one. The trimmed padding buys
+ * the native widget a little more room without shrinking the tap target.
  *
- * Measured minimums in Chromium at the app's 16px control font, content only:
- * a time field needs 99px and a date field 120px, plus 26px of padding and
- * border. Two time fields side by side therefore need 262px of row — which is
- * where the breakpoints in the create-table form come from.
+ * Sizing these controls is the harder half, and it is handled in globals.css
+ * rather than here: Safari sizes them to their own widget and ignores
+ * `width: 100%` until `appearance` is reset. Chromium does honour the width —
+ * a time field's content there needs 99px and a date field's 120px — which is
+ * why this looked correct in testing and was still broken on an iPhone.
  */
 const NATIVE_PICKER = 'px-3';
 

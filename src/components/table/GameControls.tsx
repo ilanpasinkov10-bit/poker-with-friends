@@ -194,25 +194,30 @@ function ExtendDialog({
 
       <div className="mt-5 border-t border-line-soft pt-4">
         <p className="mb-3 text-sm font-semibold text-ink-muted">או שעת סיום חדשה</p>
-        <div className="grid grid-cols-2 gap-2">
-          <Field label="תאריך" htmlFor="extendDate">
-            <TextInput
-              id="extendDate"
-              type="date"
-              ltr
-              value={customDate}
-              onChange={(e) => setCustomDate(e.target.value)}
-            />
-          </Field>
-          <Field label="שעה" htmlFor="extendTime">
-            <TextInput
-              id="extendTime"
-              type="time"
-              ltr
-              value={customTime}
-              onChange={(e) => setCustomTime(e.target.value)}
-            />
-          </Field>
+        {/* Same pairing rule as the create-table form: a native date field is
+            wider still than a time one, so these only sit side by side once
+            the card has room to spare. */}
+        <div className="@container">
+          <div className="grid gap-2 @min-[26rem]:grid-cols-2">
+            <Field label="תאריך" htmlFor="extendDate">
+              <TextInput
+                id="extendDate"
+                type="date"
+                ltr
+                value={customDate}
+                onChange={(e) => setCustomDate(e.target.value)}
+              />
+            </Field>
+            <Field label="שעה" htmlFor="extendTime">
+              <TextInput
+                id="extendTime"
+                type="time"
+                ltr
+                value={customTime}
+                onChange={(e) => setCustomTime(e.target.value)}
+              />
+            </Field>
+          </div>
         </div>
         <Button
           className="mt-3"
