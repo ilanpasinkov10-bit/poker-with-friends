@@ -20,7 +20,7 @@ export function ProfileOverview({ games }: { games: CompletedGameRecord[] }) {
         action={
           <Link
             href="/"
-            className="inline-flex h-11 items-center rounded-xl bg-brand px-5 font-semibold text-white"
+            className="inline-flex h-11 items-center rounded-xl bg-brand px-5 font-semibold text-on-brand"
           >
             לפתיחת שולחן
           </Link>

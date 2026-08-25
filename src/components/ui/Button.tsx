@@ -7,12 +7,19 @@ type Variant = 'primary' | 'secondary' | 'ghost' | 'success' | 'danger' | 'warn'
 type Size = 'sm' | 'md' | 'lg';
 
 const VARIANTS: Record<Variant, string> = {
-  primary: 'bg-brand text-white hover:bg-brand/90 active:bg-brand/80 disabled:bg-brand/40',
+  // No `disabled:bg-*` here on purpose. Fading only the fill while the label
+  // stays opaque destroys the contrast between them — on a light background a
+  // white label on a 40%-alpha brand fill is unreadable. `disabled:opacity-60`
+  // below fades label and fill together, which keeps the ratio intact.
+  primary: 'bg-brand text-on-brand hover:bg-brand/90 active:bg-brand/80',
   secondary: 'bg-surface-3 text-ink hover:bg-surface-3/80 border border-line',
   ghost: 'bg-transparent text-ink-muted hover:text-ink hover:bg-surface-2',
-  success: 'bg-profit text-[#06231a] hover:bg-profit/90 font-bold',
-  danger: 'bg-loss/15 text-loss border border-loss/30 hover:bg-loss/25',
-  warn: 'bg-warn/15 text-warn border border-warn/30 hover:bg-warn/25',
+  success: 'bg-profit text-on-profit hover:bg-profit/90 font-bold',
+  // The tinted variants use the `-soft` tokens rather than an alpha of the
+  // accent: an alpha lands on whatever happens to be behind it, which in light
+  // mode is white and leaves too little separation from the label.
+  danger: 'bg-loss-soft text-loss border border-loss/30 hover:bg-loss-soft/70',
+  warn: 'bg-warn-soft text-warn border border-warn/30 hover:bg-warn-soft/70',
 };
 
 const SIZES: Record<Size, string> = {

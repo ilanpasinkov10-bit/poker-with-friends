@@ -3,6 +3,16 @@
 /* ---------------------------------------------------------------------------
    Design tokens — dark, fintech-inspired, minimal.
    Profit is emerald, loss is rose, the brand accent is a muted violet.
+
+   The dark palette below is the baseline: it is what `@theme` generates, so
+   every component keeps working untouched. Light mode is the same token names
+   re-pointed once, under `:root[data-theme='light']` further down — no
+   component has a second set of classes, and there is no second stylesheet.
+
+   `--color-on-*` are the foregrounds for filled surfaces (a primary button, a
+   success button). They exist because "the text on a green fill" flips from
+   near-black to white between the two themes, which a bare `text-white` in a
+   component cannot express.
    --------------------------------------------------------------------------- */
 @theme {
   --color-base: #0a0b10;
@@ -27,9 +37,61 @@
   --color-warn: #f5b544;
   --color-warn-soft: #382713;
 
+  /* Foreground on a filled swatch of the colour of the same name. */
+  --color-on-brand: #ffffff;
+  --color-on-profit: #06231a;
+  --color-on-loss: #2b0a13;
+
+  /* The dimming layer behind a modal. */
+  --color-scrim: rgba(0, 0, 0, 0.7);
+  /* The violet wash on feature cards, and the emerald "live" pulse. */
+  --color-glow: rgba(124, 108, 246, 0.08);
+  --color-pulse: 52, 211, 153;
+
   --font-sans: var(--font-heebo), 'Heebo', 'Segoe UI', system-ui, -apple-system, sans-serif;
 
   --radius-xl2: 1.25rem;
+}
+
+/* ---------------------------------------------------------------------------
+   Light mode.
+
+   `data-theme` is written to <html> by the bootstrap script in the document
+   head, before first paint, so there is no flash of the wrong theme. The
+   script resolves "לפי המכשיר" itself, which is why only two values ever
+   appear here — the preference lives in localStorage, not in the CSS.
+   --------------------------------------------------------------------------- */
+:root[data-theme='light'] {
+  --color-base: #eef0f6;
+  --color-surface: #ffffff;
+  --color-surface-2: #f3f5fa;
+  --color-surface-3: #e4e8f1;
+  --color-line: #ccd3e2;
+  --color-line-soft: #e2e7f0;
+
+  --color-ink: #111524;
+  --color-ink-muted: #4d5670;
+  --color-ink-faint: #5d6580;
+
+  --color-brand: #5a45e0;
+  --color-brand-soft: #e9e6fd;
+  --color-brand-ink: #4433c0;
+
+  --color-profit: #0a6f47;
+  --color-profit-soft: #d9f2e5;
+  --color-loss: #c02a48;
+  --color-loss-soft: #fce3e8;
+  --color-warn: #855200;
+  --color-warn-soft: #fbeed4;
+
+  /* Both fills are dark enough in this theme to carry white text. */
+  --color-on-brand: #ffffff;
+  --color-on-profit: #ffffff;
+  --color-on-loss: #ffffff;
+
+  --color-scrim: rgba(17, 21, 36, 0.45);
+  --color-glow: rgba(90, 69, 224, 0.07);
+  --color-pulse: 11, 122, 78;
 }
 
 @layer base {
@@ -40,6 +102,11 @@
   html {
     background-color: var(--color-base);
     color-scheme: dark;
+  }
+
+  /* Native controls — the date and time pickers above all — follow this. */
+  html[data-theme='light'] {
+    color-scheme: light;
   }
 
   body {
@@ -94,7 +161,7 @@
     max-width: 34rem;
   }
   .card-grad {
-    background-image: linear-gradient(160deg, rgba(124, 108, 246, 0.08), transparent 60%);
+    background-image: linear-gradient(160deg, var(--color-glow), transparent 60%);
   }
 }
 
@@ -114,10 +181,10 @@
 
 @keyframes pwf-pulse-ring {
   0% {
-    box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.35);
+    box-shadow: 0 0 0 0 rgb(var(--color-pulse) / 0.35);
   }
   100% {
-    box-shadow: 0 0 0 12px rgba(52, 211, 153, 0);
+    box-shadow: 0 0 0 12px rgb(var(--color-pulse) / 0);
   }
 }
 .animate-live {

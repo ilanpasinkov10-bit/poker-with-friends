@@ -1,9 +1,38 @@
 import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes } from 'react';
 import { cn } from '@/lib/cn';
 
+/**
+ * `min-w-0` matters as much as `w-full` here. A control placed in a grid or
+ * flex track is a track item, and those default to `min-width: auto` — they
+ * refuse to shrink below their content's intrinsic minimum, so `width: 100%`
+ * alone does not stop a wide control from pushing its column out. That is what
+ * clipped the time values on narrow phones.
+ */
 const CONTROL =
-  'w-full rounded-xl border border-line bg-surface-2 px-3.5 py-3 text-ink placeholder:text-ink-faint ' +
+  'w-full min-w-0 max-w-full rounded-xl border border-line bg-surface-2 px-3.5 py-3 text-ink ' +
+  'placeholder:text-ink-faint ' +
   'focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/30 disabled:opacity-50';
+
+/**
+ * Date and time fields are drawn by the browser, not by us: the segments, the
+ * separators and the picker glyph are all native, and their width is whatever
+ * the *browser's* locale asks for. An English-locale phone renders a 12-hour
+ * clock ("08:30 PM"), which is markedly wider than "20:00" and is what
+ * overflowed the two-column row.
+ *
+ * `lang` asks for the Israeli formatting the rest of the app uses. It is only
+ * a hint: every engine measured here takes the format from its own locale
+ * settings and ignores the attribute, so the layout cannot assume the narrow
+ * 24-hour form and must survive the wide 12-hour one. It does — the row stacks
+ * before the columns get that tight. The trimmed padding buys the native
+ * widget a little more room without shrinking the tap target.
+ *
+ * Measured minimums in Chromium at the app's 16px control font, content only:
+ * a time field needs 99px and a date field 120px, plus 26px of padding and
+ * border. Two time fields side by side therefore need 262px of row — which is
+ * where the breakpoints in the create-table form come from.
+ */
+const NATIVE_PICKER = 'px-3';
 
 export function Field({
   label,
@@ -19,7 +48,7 @@ export function Field({
   htmlFor?: string;
 }) {
   return (
-    <div className="space-y-1.5">
+    <div className="min-w-0 space-y-1.5">
       <label htmlFor={htmlFor} className="block text-sm font-medium text-ink-muted">
         {label}
       </label>
@@ -38,11 +67,13 @@ export interface TextInputProps extends InputHTMLAttributes<HTMLInputElement> {
 }
 
 export function TextInput({ className, ltr, ...rest }: TextInputProps) {
+  const native = rest.type === 'date' || rest.type === 'time';
   return (
     <input
       {...rest}
       dir={ltr ? 'ltr' : undefined}
-      className={cn(CONTROL, ltr && 'ltr-num text-start', className)}
+      lang={native ? 'he-IL' : rest.lang}
+      className={cn(CONTROL, ltr && 'ltr-num text-start', native && NATIVE_PICKER, className)}
     />
   );
 }
@@ -89,7 +120,7 @@ export function OptionGroup<T extends string>({
               value={option.value}
               checked={active}
               onChange={() => onChange(option.value)}
-              className="mt-1 size-4 accent-[#7c6cf6]"
+              className="mt-1 size-4 shrink-0 accent-brand"
             />
             <span className="min-w-0">
               <span className="block text-sm font-semibold text-ink">{option.label}</span>
@@ -135,7 +166,7 @@ export function Switch({
       >
         <span
           className={cn(
-            'absolute top-0.5 size-5 rounded-full bg-white transition-all',
+            'absolute top-0.5 size-5 rounded-full bg-on-brand transition-all',
             // Logical offsets: "off" rests at the start edge (right in RTL),
             // "on" slides to the end edge.
             checked ? 'start-[1.375rem]' : 'start-0.5',

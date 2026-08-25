@@ -26,7 +26,7 @@ export function ProfileTabs() {
                 className={cn(
                   'inline-flex h-10 items-center rounded-full px-4 text-sm font-semibold transition-colors',
                   active
-                    ? 'bg-brand text-white'
+                    ? 'bg-brand text-on-brand'
                     : 'border border-line bg-surface-2 text-ink-muted hover:text-ink',
                 )}
               >

@@ -84,7 +84,7 @@ export function AdminPlayerActions({
         onClick={addBuyIn}
         disabled={pending || !canAdd}
         aria-label={`הוסף כניסה ל${player.displayName}`}
-        className="grid size-10 place-items-center rounded-xl bg-brand text-xl font-black text-white disabled:opacity-40"
+        className="grid size-10 place-items-center rounded-xl bg-brand text-xl font-black text-on-brand disabled:opacity-40"
       >
         +
       </button>

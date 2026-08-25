@@ -124,7 +124,7 @@ function Actions({
         type="button"
         onClick={onApprove}
         disabled={disabled}
-        className="h-10 rounded-xl bg-profit px-4 text-sm font-bold text-[#06231a] disabled:opacity-50"
+        className="h-10 rounded-xl bg-profit px-4 text-sm font-bold text-on-profit disabled:opacity-50"
       >
         אשר
       </button>

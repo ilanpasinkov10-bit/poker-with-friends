@@ -190,7 +190,7 @@ function LiveSection({ model }: { model: TableViewModel }) {
             >
               עזבו את השולחן
             </SectionTitle>
-            <ul className="grid gap-2 opacity-70">
+            <ul className="grid gap-2 opacity-90">
               {leftPlayers.map((player) => (
                 <PlayerCard
                   key={player.id}

@@ -1,4 +1,5 @@
 import { AvatarUploader } from '@/components/profile/AvatarUploader';
+import { AppearanceControl } from '@/components/theme/AppearanceControl';
 import { ProfileSettingsForm } from '@/components/profile/ProfileSettingsForm';
 import { Card, SectionTitle } from '@/components/ui/Card';
 import { requireRegisteredUser } from '@/lib/auth';
@@ -19,6 +20,16 @@ export default async function ProfileSettingsPage() {
             name={user.profile?.display_name ?? 'שחקן'}
             avatarUrl={user.profile?.avatar_url ?? null}
           />
+        </Card>
+      </section>
+
+      <section>
+        <SectionTitle>מראה</SectionTitle>
+        <Card className="grid gap-2">
+          <AppearanceControl />
+          <p className="text-xs text-ink-faint">
+            הבחירה נשמרת במכשיר הזה ונשמרת גם אחרי רענון או סגירת הדפדפן.
+          </p>
         </Card>
       </section>
 
