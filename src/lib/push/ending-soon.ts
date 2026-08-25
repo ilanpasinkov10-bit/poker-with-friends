@@ -32,7 +32,12 @@ async function sendFor(tables: ClaimedTable[]): Promise<number> {
       tableId: table.id,
       tableName: table.name,
       actorUserId: null,
-      event: { kind: 'ENDING_SOON', at: new Date().toISOString(), tableName: table.name },
+      event: {
+        id: `ending-soon:${table.id}`,
+        kind: 'ENDING_SOON',
+        at: new Date().toISOString(),
+        tableName: table.name,
+      },
     });
   }
   return tables.length;

@@ -10,7 +10,7 @@ import { cn } from '@/lib/cn';
 import { formatChips, formatDate, formatMoney } from '@/lib/format';
 import { useTableRealtime } from '@/lib/hooks/useTableRealtime';
 import { useEndingSoonReminder } from '@/lib/hooks/useEndingSoonReminder';
-import { useTableSounds } from '@/lib/hooks/useTableSounds';
+import { useTableAlerts } from '@/lib/hooks/useTableAlerts';
 import { TABLE_STATUS_LABEL, TABLE_STATUS_TONE, playersWord } from '@/lib/labels';
 import type { TableViewModel } from '@/lib/data/table';
 import { AdminPlayerActions } from './AdminPlayerActions';
@@ -27,7 +27,7 @@ import { ResultsPanel } from './ResultsPanel';
 
 export function TableScreen({ model }: { model: TableViewModel }) {
   const { connected } = useTableRealtime(model.table.id);
-  useTableSounds(model, viewerWantsSound(model));
+  useTableAlerts(model, viewerWantsSound(model));
   // Replaces a frequent scheduler: see useEndingSoonReminder.
   useEndingSoonReminder({
     id: model.table.id,
@@ -230,7 +230,9 @@ function NotSeated({ tableId }: { tableId: string }) {
 
 /**
  * Sounds are the player's own setting, and there is nobody to play them for
- * when the viewer is only spectating as an admin without a seat.
+ * when the viewer is only spectating as an admin without a seat. Toasts are
+ * not gated on this: a silent visual note is not what anyone is turning off
+ * when they turn sounds off.
  */
 function viewerWantsSound(model: TableViewModel): boolean {
   if (!model.viewer.soundsEnabled) return false;

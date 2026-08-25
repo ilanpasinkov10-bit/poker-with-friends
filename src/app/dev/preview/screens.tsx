@@ -255,7 +255,7 @@ export const SCREENS: PreviewScreen[] = [
     id: 'live-pot',
     label: 'קופה חיה',
     group: 'משחק חי',
-    note: 'הסכום שעדיין במשחק הוא הגיבור. מתחתיו סך הכניסות, מה שנפדה, ז׳יטונים פעילים, שחקנים וכניסות — ופעילות אחרונה.',
+    note: 'הסכום שעדיין במשחק הוא הגיבור. מתחתיו הסטטיסטיקות, ותצוגה מקוצרת של הפעילות. "ראה עוד פעילות" פותח את ההיסטוריה המלאה.',
     render: () => (
       <Framed title="פוקר של יום חמישי" subtitle="קופה חיה">
         <LivePot model={makeModel({ players: SEATED_PLAYERS, leftPlayers: LEFT_PLAYERS })} />

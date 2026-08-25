@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { guard, ok, type ActionResult } from '@/lib/action-result';
-import { notifyBuyIn } from '@/lib/push/table-events';
+import { notifyBuyIn, notifyBuyInReversed } from '@/lib/push/table-events';
 import { createClient } from '@/lib/supabase/server';
 
 /**
@@ -96,11 +96,34 @@ export async function reverseBuyInAction(
 ): Promise<ActionResult> {
   return guard(async () => {
     const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    // Read the entry before it is undone: the reversal row stores negative
+    // amounts, and the message is about what came back to the player.
+    const { data: original } = await supabase
+      .from('buyin_transactions')
+      .select('table_player_id, amount_agorot')
+      .eq('id', transactionId)
+      .maybeSingle();
+
     const { error } = await supabase.rpc('reverse_buyin', {
       p_transaction: transactionId,
       p_note: note ?? null,
     });
     if (error) throw error;
+
+    // Only once the reversal has committed, so a refused cancellation never
+    // announces a refund that did not happen.
+    if (original) {
+      await notifyBuyInReversed(
+        original.table_player_id,
+        Math.abs(original.amount_agorot),
+        user?.id ?? null,
+      );
+    }
+
     revalidatePath(`/table/${tableId}`);
     return ok();
   });

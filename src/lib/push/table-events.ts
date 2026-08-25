@@ -59,7 +59,12 @@ export async function notifyPlayerJoined(
 ) {
   await send(
     tableId,
-    { kind: 'PLAYER_JOINED', at: new Date().toISOString(), playerName: displayName },
+    {
+      id: `join:${tableId}:${Date.now()}`,
+      kind: 'PLAYER_JOINED',
+      at: new Date().toISOString(),
+      playerName: displayName,
+    },
     actorUserId,
   );
 }
@@ -92,6 +97,7 @@ export async function notifyPlayerLeft(
     tableName: table.name,
     actorUserId,
     event: {
+      id: `left:${tablePlayerId}`,
       kind: 'PLAYER_LEFT',
       at: new Date().toISOString(),
       playerName: seat.displayName,
@@ -127,6 +133,7 @@ export async function notifyBuyIn(tablePlayerId: string, actorUserId: string | n
     tableName: table.name,
     actorUserId,
     event: {
+      id: `buyin:${tablePlayerId}:${Date.now()}`,
       kind: 'BUY_IN',
       at: new Date().toISOString(),
       playerName: seat.displayName,
@@ -143,7 +150,12 @@ export async function notifyGameStarted(tableId: string, actorUserId: string | n
     tableId,
     tableName: table.name,
     actorUserId,
-    event: { kind: 'GAME_STARTED', at: new Date().toISOString(), tableName: table.name },
+    event: {
+      id: `started:${tableId}`,
+      kind: 'GAME_STARTED',
+      at: new Date().toISOString(),
+      tableName: table.name,
+    },
   });
 }
 
@@ -159,6 +171,45 @@ export async function notifyGameEnded(tableId: string) {
     tableId,
     tableName: table.name,
     actorUserId: null,
-    event: { kind: 'GAME_ENDED', at: new Date().toISOString(), tableName: table.name },
+    event: {
+      id: `ended:${tableId}`,
+      kind: 'GAME_ENDED',
+      at: new Date().toISOString(),
+      tableName: table.name,
+    },
+  });
+}
+
+/**
+ * A cancelled entry.
+ *
+ * The admin who cancelled it is excluded — they are already looking at their
+ * own confirmation — but the player whose entry it was is told, because money
+ * moving off their stack without them touching anything is exactly the sort of
+ * thing they should not discover by accident.
+ */
+export async function notifyBuyInReversed(
+  tablePlayerId: string,
+  refundedAgorot: number,
+  actorUserId: string | null,
+) {
+  const seat = await seatFacts(tablePlayerId);
+  if (!seat) return;
+
+  const table = await tableFacts(seat.tableId);
+  if (!table) return;
+
+  await notifyTable({
+    tableId: seat.tableId,
+    tableName: table.name,
+    actorUserId,
+    event: {
+      id: `reversal:${tablePlayerId}:${Date.now()}`,
+      kind: 'BUY_IN_REVERSED',
+      at: new Date().toISOString(),
+      playerName: seat.displayName,
+      refundedAgorot,
+      refundedChips: 0,
+    },
   });
 }

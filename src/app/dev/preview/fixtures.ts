@@ -247,9 +247,27 @@ function ledgerFor(players: PlayerView[]) {
         amount_agorot: ECONOMICS.buyInAgorot,
         chips: ECONOMICS.chipsPerBuyIn,
         created_at: new Date(START + step * 7 * 60_000).toISOString(),
+        created_by: ADMIN_USER_ID,
         reverses_transaction_id: null,
       });
     }
+  }
+
+  // One cancelled entry, so the gallery shows the reversal event and the way
+  // it removes the entry it undid.
+  const last = rows[rows.length - 1];
+  if (last) {
+    step += 1;
+    rows.push({
+      id: `tx-reversal-${last.id}`,
+      table_player_id: last.table_player_id,
+      type: 'REVERSAL',
+      amount_agorot: -ECONOMICS.buyInAgorot,
+      chips: -ECONOMICS.chipsPerBuyIn,
+      created_at: new Date(START + step * 7 * 60_000).toISOString(),
+      created_by: ADMIN_USER_ID,
+      reverses_transaction_id: last.id,
+    });
   }
   return rows;
 }
