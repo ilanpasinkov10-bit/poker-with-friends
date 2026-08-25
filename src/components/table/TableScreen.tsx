@@ -9,6 +9,7 @@ import { Num } from '@/components/ui/Num';
 import { cn } from '@/lib/cn';
 import { formatChips, formatDate, formatMoney } from '@/lib/format';
 import { useTableRealtime } from '@/lib/hooks/useTableRealtime';
+import { useEndingSoonReminder } from '@/lib/hooks/useEndingSoonReminder';
 import { useTableSounds } from '@/lib/hooks/useTableSounds';
 import { TABLE_STATUS_LABEL, TABLE_STATUS_TONE, playersWord } from '@/lib/labels';
 import type { TableViewModel } from '@/lib/data/table';
@@ -27,6 +28,13 @@ import { ResultsPanel } from './ResultsPanel';
 export function TableScreen({ model }: { model: TableViewModel }) {
   const { connected } = useTableRealtime(model.table.id);
   useTableSounds(model, viewerWantsSound(model));
+  // Replaces a frequent scheduler: see useEndingSoonReminder.
+  useEndingSoonReminder({
+    id: model.table.id,
+    status: model.table.status,
+    plannedEndAt: model.table.planned_end_at,
+    endingSoonNotifiedAt: model.table.ending_soon_notified_at,
+  });
   const { table, viewer } = model;
 
   const live = table.status === 'WAITING' || table.status === 'ACTIVE';

@@ -2,6 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { buildTableActivity, type ActivityLedgerRow } from '@/lib/domain/activity';
 import { eventSentence, notificationCopy, sortEvents } from '@/lib/domain/events';
 import { isScannable, joinPath, joinUrl } from '@/lib/domain/join-link';
+import {
+  isReminderDue,
+  shouldWatchForReminder,
+  type ReminderState,
+} from '@/lib/domain/ending-soon';
 import { computePotTotals } from '@/lib/domain/participation';
 import { soundsForChange, type TableSnapshot } from '@/lib/domain/table-diff';
 
@@ -353,5 +358,110 @@ describe('the join link', () => {
     // absolute form.
     expect(isScannable(joinUrl('https://poker.example.com', 'A7K92'))).toBe(true);
     expect(isScannable(joinPath('A7K92'))).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// When the "one hour to go" reminder is due
+// ---------------------------------------------------------------------------
+describe('the ending-soon reminder window', () => {
+  const NOW = Date.parse('2026-08-23T22:00:00.000Z');
+  const endingIn = (minutes: number) => new Date(NOW + minutes * 60_000).toISOString();
+  const table = (over: Partial<ReminderState> = {}): ReminderState => ({
+    status: 'ACTIVE',
+    plannedEndAt: endingIn(60),
+    endingSoonNotifiedAt: null,
+    ...over,
+  });
+
+  it('is due an hour before the planned finish', () => {
+    expect(isReminderDue(table(), NOW)).toBe(true);
+  });
+
+  it('is not due while the game still has hours to run', () => {
+    expect(isReminderDue(table({ plannedEndAt: endingIn(240) }), NOW)).toBe(false);
+  });
+
+  it('is not due once the finish is minutes away', () => {
+    // A reminder landing with four minutes left is noise; the countdown on
+    // screen has said the same thing for an hour.
+    expect(isReminderDue(table({ plannedEndAt: endingIn(4) }), NOW)).toBe(false);
+  });
+
+  it('is not due for a game that is not being played', () => {
+    for (const status of ['WAITING', 'COUNTING', 'COMPLETED', 'CANCELLED']) {
+      expect(isReminderDue(table({ status }), NOW)).toBe(false);
+    }
+  });
+
+  it('is never due twice', () => {
+    // The stamp is what the database claim writes. Once set, every caller —
+    // any phone, any scheduler — agrees there is nothing left to send.
+    expect(
+      isReminderDue(table({ endingSoonNotifiedAt: '2026-08-23T21:05:00.000Z' }), NOW),
+    ).toBe(false);
+  });
+
+  it('is not due for a game whose finish has already passed', () => {
+    expect(isReminderDue(table({ plannedEndAt: endingIn(-30) }), NOW)).toBe(false);
+  });
+
+  it('ignores an unparseable finish time rather than sending on a guess', () => {
+    expect(isReminderDue(table({ plannedEndAt: 'not-a-date' }), NOW)).toBe(false);
+  });
+});
+
+describe('when an open client watches for the reminder', () => {
+  const NOW = Date.parse('2026-08-23T22:00:00.000Z');
+  const endingIn = (minutes: number) => new Date(NOW + minutes * 60_000).toISOString();
+  const table = (over: Partial<ReminderState> = {}): ReminderState => ({
+    status: 'ACTIVE',
+    plannedEndAt: endingIn(60),
+    endingSoonNotifiedAt: null,
+    ...over,
+  });
+
+  it('costs nothing while the finish is far off', () => {
+    // No timer, no requests — a table with hours left is exactly as cheap as
+    // it was before the reminder existed.
+    expect(shouldWatchForReminder(table({ plannedEndAt: endingIn(300) }), NOW)).toBe(false);
+  });
+
+  it('starts before the send window opens, so the first check is prompt', () => {
+    // Watching only from the moment the window opens would risk being a whole
+    // interval late.
+    expect(shouldWatchForReminder(table({ plannedEndAt: endingIn(85) }), NOW)).toBe(true);
+    expect(isReminderDue(table({ plannedEndAt: endingIn(85) }), NOW)).toBe(false);
+  });
+
+  it('watches throughout the send window', () => {
+    for (const minutes of [75, 60, 30, 10]) {
+      expect(shouldWatchForReminder(table({ plannedEndAt: endingIn(minutes) }), NOW)).toBe(true);
+    }
+  });
+
+  it('stops once the reminder has gone out', () => {
+    expect(
+      shouldWatchForReminder(table({ endingSoonNotifiedAt: '2026-08-23T21:05:00.000Z' }), NOW),
+    ).toBe(false);
+  });
+
+  it('stops after the window closes, rather than polling forever', () => {
+    expect(shouldWatchForReminder(table({ plannedEndAt: endingIn(2) }), NOW)).toBe(false);
+    expect(shouldWatchForReminder(table({ plannedEndAt: endingIn(-60) }), NOW)).toBe(false);
+  });
+
+  it('never watches a game that is not being played', () => {
+    expect(shouldWatchForReminder(table({ status: 'COUNTING' }), NOW)).toBe(false);
+  });
+
+  it('always watches whenever the reminder could be due', () => {
+    // The client decides when to ask and the server decides whether to send.
+    // If the watching window did not cover the send window, a reminder could
+    // come due with nobody asking, and be silently dropped.
+    for (let minutes = 0; minutes <= 200; minutes += 1) {
+      const t = table({ plannedEndAt: endingIn(minutes) });
+      if (isReminderDue(t, NOW)) expect(shouldWatchForReminder(t, NOW)).toBe(true);
+    }
   });
 });

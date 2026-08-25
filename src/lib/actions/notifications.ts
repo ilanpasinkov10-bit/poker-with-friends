@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { guard, ok, type ActionResult } from '@/lib/action-result';
 import { AppError } from '@/lib/errors';
 import { publicVapidKey } from '@/lib/push/config';
+import { claimAndNotifyTable } from '@/lib/push/ending-soon';
 import { createClient } from '@/lib/supabase/server';
 
 /**
@@ -104,4 +105,47 @@ export async function removePushSubscriptionAction(endpoint: string): Promise<Ac
  */
 export async function pushPublicKeyAction(): Promise<ActionResult<{ publicKey: string | null }>> {
   return guard(async () => ok({ publicKey: publicVapidKey() }));
+}
+
+/**
+ * Asks whether this table's "one hour to go" reminder is due, and sends it if
+ * so. Called by an open client during the final stretch of a game.
+ *
+ * This is what replaces a frequent scheduler. An active poker table reliably
+ * has someone's app open — the admin approving rebuys, at the very least — and
+ * that client already refreshes every thirty seconds. Letting it ask a cheap
+ * question every couple of minutes near the end delivers the reminder without
+ * any cron at all.
+ *
+ * It is safe to call from anywhere, by anyone with a seat at the table:
+ * membership is checked through RLS below, the reply says nothing (so it
+ * cannot be used to probe for tables), and the claim inside means repeated
+ * calls — from one phone or six — still send at most one reminder, ever.
+ */
+export async function checkEndingSoonAction(tableId: string): Promise<ActionResult> {
+  return guard(async () => {
+    const id = z.string().uuid().parse(tableId);
+
+    // Read as the caller, not as the service role: if RLS will not show them
+    // this table, they have no business triggering anything on it.
+    const supabase = await createClient();
+    const { data: table } = await supabase
+      .from('poker_tables')
+      .select('id')
+      .eq('id', id)
+      .maybeSingle();
+    if (!table) return ok();
+
+    try {
+      await claimAndNotifyTable(id);
+    } catch (error) {
+      // A reminder that could not be sent must never surface to a player who
+      // was only looking at their table.
+      console.error('[push] ending-soon check failed', {
+        tableId: id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+    return ok();
+  });
 }
