@@ -6,6 +6,7 @@ import { guard, ok, type ActionResult } from '@/lib/action-result';
 import { AppError } from '@/lib/errors';
 import { shekelsToAgorot } from '@/lib/domain/money';
 import { requireUuid, singleRow } from '@/lib/rpc';
+import { notifyGameStarted } from '@/lib/push/table-events';
 import { createClient } from '@/lib/supabase/server';
 import { jerusalemToUtc } from '@/lib/timezone';
 
@@ -121,11 +122,22 @@ export async function setTableStatusAction(
 ): Promise<ActionResult> {
   return guard(async () => {
     const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     const { error } = await supabase.rpc('set_table_status', {
       p_table: tableId,
       p_status: status,
     });
     if (error) throw error;
+
+    // Dealing has begun. COUNTING and CANCELLED are not announced: counting is
+    // followed immediately by the results notification, and a cancelled game
+    // is better explained by the admin than by a push.
+    if (status === 'ACTIVE') {
+      await notifyGameStarted(tableId, user?.id ?? null);
+    }
+
     revalidatePath(`/table/${tableId}`);
     return ok();
   });

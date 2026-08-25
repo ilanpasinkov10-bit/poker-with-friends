@@ -32,6 +32,7 @@ interface Seat {
   approvedChips: number | null;
   submittedChips: number | null;
   totalPaidAgorot: number;
+  chipsIssued: number;
   hasFinancials: boolean;
 }
 
@@ -42,6 +43,7 @@ function seat(overrides: Partial<Seat> = {}): Seat {
     approvedChips: null,
     submittedChips: null,
     totalPaidAgorot: 3 * ECONOMICS.buyInAgorot,
+    chipsIssued: 3 * ECONOMICS.chipsPerBuyIn,
     hasFinancials: true,
     ...overrides,
   };

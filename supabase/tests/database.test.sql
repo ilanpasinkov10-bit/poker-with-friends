@@ -1066,5 +1066,127 @@ begin
     'the results still sum to zero with a leaver in the game');
 end $$;
 
+\echo '── notification settings and push subscriptions ──'
+do $$
+declare
+  admin uuid := 'a0000000-0000-4000-8000-000000000001';
+  other uuid := 'a0000000-0000-4000-8000-000000000002';
+  n int;
+begin
+  -- Both switches default on. Asserted against the column defaults rather than
+  -- a row count, because the settings table is behind RLS and a count here
+  -- would only ever see the current user's own row.
+  perform expect((select count(*) from information_schema.columns
+                   where table_schema = 'public'
+                     and table_name = 'profile_privacy_settings'
+                     and column_name in ('push_notifications_enabled', 'game_sounds_enabled')
+                     and column_default = 'true'
+                     and is_nullable = 'NO') = 2,
+    'both notification switches default on and are never null');
+
+  perform test_as(admin);
+  perform expect((select push_notifications_enabled and game_sounds_enabled
+                    from public.profile_privacy_settings where profile_id = admin),
+    'an existing profile reads both switches as on');
+
+  -- They are independent: turning one off leaves the other alone.
+  update public.profile_privacy_settings
+     set push_notifications_enabled = false where profile_id = admin;
+  perform expect((select game_sounds_enabled from public.profile_privacy_settings
+                   where profile_id = admin),
+    'turning push off does not turn sounds off');
+  update public.profile_privacy_settings
+     set push_notifications_enabled = true where profile_id = admin;
+
+  -- A subscription belongs to its owner, and only to them.
+  insert into public.push_subscriptions (profile_id, endpoint, p256dh, auth)
+  values (admin, 'https://push.example.com/admin', 'k', 'a');
+  perform expect((select count(*) from public.push_subscriptions) = 1,
+    'a player can record their own push subscription');
+
+  -- Re-subscribing from the same browser refreshes the row rather than adding
+  -- a second one, which would make every notification arrive twice.
+  insert into public.push_subscriptions (profile_id, endpoint, p256dh, auth)
+  values (admin, 'https://push.example.com/admin', 'k2', 'a2')
+  on conflict (endpoint) do update set p256dh = excluded.p256dh, auth = excluded.auth;
+  select count(*) into n from public.push_subscriptions;
+  perform expect(n = 1, 're-subscribing the same browser does not duplicate the row');
+  perform expect((select p256dh from public.push_subscriptions
+                   where endpoint = 'https://push.example.com/admin') = 'k2',
+    'the refreshed keys replace the old ones');
+
+end $$;
+
+-- These keys are what allows a message to be sent to a device, so the
+-- isolation matters more than most. Checked under the `authenticated` role,
+-- because RLS does not apply to the superuser the rest of the suite runs as.
+do $$
+declare
+  admin uuid := 'a0000000-0000-4000-8000-000000000001';
+  other uuid := 'a0000000-0000-4000-8000-000000000002';
+begin
+  set local role authenticated;
+
+  perform set_config('request.jwt.claims', json_build_object('sub', admin)::text, true);
+  perform expect((select count(*) from public.push_subscriptions) = 1,
+    'a player can read their own push subscription');
+
+  perform set_config('request.jwt.claims', json_build_object('sub', other)::text, true);
+  perform expect((select count(*) from public.push_subscriptions) = 0,
+    'another player cannot read someone else''s push subscription');
+
+  begin
+    insert into public.push_subscriptions (profile_id, endpoint, p256dh, auth)
+    values (admin, 'https://push.example.com/forged', 'k', 'a');
+    reset role;
+    raise exception 'FAIL  a player could record a subscription against someone else';
+  exception when insufficient_privilege then
+    raise notice 'ok    a player cannot record a subscription against someone else';
+  end;
+
+  perform expect((select count(*) from public.push_subscriptions
+                   where endpoint = 'https://push.example.com/admin') = 0,
+    'the other player still cannot see the row they tried to write beside');
+
+  reset role;
+end $$;
+
+\echo '── the one-hour reminder fires exactly once ──'
+do $$
+declare
+  admin uuid := 'a0000000-0000-4000-8000-000000000001';
+  t public.poker_tables; claimed int;
+begin
+  perform test_as(admin);
+  t := public.create_poker_table('תזכורת סיום', current_date, now(),
+         now() + interval '45 minutes', 5000, 500, 6, 'AUTO_JOIN', 'OPEN', 'ADMIN_COUNT', true);
+  perform public.set_table_status(t.id, 'ACTIVE');
+
+  perform expect((select ending_soon_notified_at is null from public.poker_tables where id = t.id),
+    'a new table has not been reminded');
+
+  -- The scheduler's claim: one atomic statement that only ever takes rows
+  -- nobody has taken yet.
+  with claimed_rows as (
+    update public.poker_tables
+       set ending_soon_notified_at = now()
+     where id = t.id and status = 'ACTIVE' and ending_soon_notified_at is null
+       and planned_end_at <= now() + interval '75 minutes'
+    returning 1
+  )
+  select count(*) into claimed from claimed_rows;
+  perform expect(claimed = 1, 'the first run claims the table');
+
+  with claimed_rows as (
+    update public.poker_tables
+       set ending_soon_notified_at = now()
+     where id = t.id and status = 'ACTIVE' and ending_soon_notified_at is null
+       and planned_end_at <= now() + interval '75 minutes'
+    returning 1
+  )
+  select count(*) into claimed from claimed_rows;
+  perform expect(claimed = 0, 'a second run claims nothing, so nobody is reminded twice');
+end $$;
+
 \echo ''
 \echo 'All database checks passed.'

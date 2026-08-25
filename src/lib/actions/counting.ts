@@ -6,6 +6,7 @@ import { guard, ok, type ActionResult } from '@/lib/action-result';
 import { computeFinalResults, validateChipCount } from '@/lib/domain/chips';
 import { computeSettlement, verifySettlement } from '@/lib/domain/settlement';
 import { AppError } from '@/lib/errors';
+import { notifyGameEnded } from '@/lib/push/table-events';
 import { createClient } from '@/lib/supabase/server';
 import type { FinalRowResult } from '@/types/database';
 
@@ -97,6 +98,10 @@ export async function finalizeGameAction(tableId: string): Promise<ActionResult>
       p_settlements: payload,
     });
     if (finalizeError) throw finalizeError;
+
+    // Everyone, the admin included: the settlement is what the whole table has
+    // been waiting for, and the person who pressed the button wants it too.
+    await notifyGameEnded(tableId);
 
     revalidatePath(`/table/${tableId}`);
     revalidatePath('/profile', 'layout');

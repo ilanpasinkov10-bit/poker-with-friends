@@ -26,7 +26,23 @@ export type ProfilePrivacyRow = {
   share_detailed_history: boolean;
   /** Whether this player appears on the global leaderboard. */
   show_on_leaderboard: boolean;
+  /** Whether table events may be pushed to this player's devices. */
+  push_notifications_enabled: boolean;
+  /** Whether the open app plays event sounds. Independent of push. */
+  game_sounds_enabled: boolean;
   updated_at: string;
+}
+
+/** One browser or device that has accepted push permission. */
+export type PushSubscriptionRow = {
+  id: string;
+  profile_id: string;
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  user_agent: string | null;
+  created_at: string;
+  last_seen_at: string;
 }
 
 export type PokerGroupRow = {
@@ -56,6 +72,8 @@ export type PokerTableRow = {
   started_at: string | null;
   counting_started_at: string | null;
   completed_at: string | null;
+  /** Set once the "one hour to go" reminder has been sent, so it fires once. */
+  ending_soon_notified_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -194,8 +212,9 @@ export type Database = {
     Tables: {
       profiles: Writable<ProfileRow, Partial<ProfileRow>, Pick<Partial<ProfileRow>, 'display_name' | 'avatar_url'>>;
       profile_privacy_settings: Writable<ProfilePrivacyRow>;
+      push_subscriptions: Writable<PushSubscriptionRow>;
       poker_groups: ReadOnly<PokerGroupRow>;
-      poker_tables: ReadOnly<PokerTableRow>;
+      poker_tables: Writable<PokerTableRow>;
       table_players: ReadOnly<TablePlayerRow>;
       rebuy_requests: ReadOnly<RebuyRequestRow>;
       buyin_transactions: ReadOnly<BuyinTransactionRow>;

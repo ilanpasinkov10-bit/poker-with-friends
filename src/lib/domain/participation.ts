@@ -98,15 +98,41 @@ export interface PotTotals {
   cashedOutAgorot: number;
   /** What is still being played for. */
   activePotAgorot: number;
+  /** Every chip handed out this game. */
+  chipsIssued: number;
+  /** Chips that left the table in a completed cash-out. */
+  chipsCashedOut: number;
+  /** Chips still in front of the players who are still seated. */
+  activeChips: number;
 }
 
 export function computePotTotals(
-  participants: readonly { totalPaidAgorot: number; cashOut: CashOutSummary | null }[],
+  participants: readonly {
+    totalPaidAgorot: number;
+    chipsIssued: number;
+    cashOut: CashOutSummary | null;
+  }[],
 ): PotTotals {
-  const potAgorot = participants.reduce((sum, p) => sum + p.totalPaidAgorot, 0);
-  const cashedOutAgorot = participants.reduce(
-    (sum, p) => sum + (p.cashOut?.finalValueAgorot ?? 0),
-    0,
-  );
-  return { potAgorot, cashedOutAgorot, activePotAgorot: potAgorot - cashedOutAgorot };
+  let potAgorot = 0;
+  let cashedOutAgorot = 0;
+  let chipsIssued = 0;
+  let chipsCashedOut = 0;
+
+  for (const p of participants) {
+    potAgorot += p.totalPaidAgorot;
+    chipsIssued += p.chipsIssued;
+    if (p.cashOut) {
+      cashedOutAgorot += p.cashOut.finalValueAgorot;
+      chipsCashedOut += p.cashOut.finalChips;
+    }
+  }
+
+  return {
+    potAgorot,
+    cashedOutAgorot,
+    activePotAgorot: potAgorot - cashedOutAgorot,
+    chipsIssued,
+    chipsCashedOut,
+    activeChips: chipsIssued - chipsCashedOut,
+  };
 }

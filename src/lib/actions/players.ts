@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { guard, ok, type ActionResult } from '@/lib/action-result';
 import { AppError } from '@/lib/errors';
+import { notifyPlayerJoined, notifyPlayerLeft } from '@/lib/push/table-events';
 import { createClient } from '@/lib/supabase/server';
 
 const codeSchema = z
@@ -72,6 +73,16 @@ export async function joinTableAction(input: {
     if (error) throw error;
 
     const result = data as { table_id: string; table_player_id: string; status: string };
+
+    // Only a seat that is actually at the table is news; a request awaiting
+    // the admin's approval is not yet an arrival.
+    if (result.status === 'ACTIVE') {
+      const {
+        data: { user: joiner },
+      } = await supabase.auth.getUser();
+      await notifyPlayerJoined(result.table_id, displayName, joiner?.id ?? null);
+    }
+
     revalidatePath(`/table/${result.table_id}`);
     return ok({
       tableId: result.table_id,
@@ -88,11 +99,26 @@ export async function resolveJoinRequestAction(
 ): Promise<ActionResult> {
   return guard(async () => {
     const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    const { data: seat } = await supabase
+      .from('table_players')
+      .select('display_name')
+      .eq('id', tablePlayerId)
+      .maybeSingle();
+
     const { error } = await supabase.rpc('resolve_join_request', {
       p_table_player: tablePlayerId,
       p_approve: approve,
     });
     if (error) throw error;
+
+    // Under ADMIN_APPROVAL this is the moment the player actually joins.
+    if (approve && seat) {
+      await notifyPlayerJoined(tableId, seat.display_name, user?.id ?? null);
+    }
+
     revalidatePath(`/table/${tableId}`);
     return ok();
   });
@@ -119,11 +145,18 @@ export async function leaveTableAction(
     const value = parsed.data;
 
     const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     const { error } = await supabase.rpc('leave_table', {
       p_table_player: tablePlayerId,
       p_chips: value,
     });
     if (error) throw error;
+
+    // Only after the transaction has committed, so a refused leave never
+    // announces a departure that did not happen.
+    await notifyPlayerLeft(tablePlayerId, value, user?.id ?? null);
 
     revalidatePath(`/table/${tableId}`);
     return ok();

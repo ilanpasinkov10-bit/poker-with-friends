@@ -96,6 +96,10 @@ export async function loadPrivacySettings(userId: string): Promise<ProfilePrivac
       share_stats_with_table_members: true,
       share_detailed_history: false,
       show_on_leaderboard: false,
+      // Both default on, matching the column defaults in 0011. A missing row
+      // must read the same as a freshly created one.
+      push_notifications_enabled: true,
+      game_sounds_enabled: true,
       updated_at: new Date().toISOString(),
     }
   );

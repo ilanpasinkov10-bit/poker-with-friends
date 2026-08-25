@@ -1,4 +1,5 @@
 import { AvatarUploader } from '@/components/profile/AvatarUploader';
+import { NotificationSettings } from '@/components/notifications/NotificationSettings';
 import { AppearanceControl } from '@/components/theme/AppearanceControl';
 import { ProfileSettingsForm } from '@/components/profile/ProfileSettingsForm';
 import { Card, SectionTitle } from '@/components/ui/Card';
@@ -21,6 +22,14 @@ export default async function ProfileSettingsPage() {
             avatarUrl={user.profile?.avatar_url ?? null}
           />
         </Card>
+      </section>
+
+      <section>
+        <SectionTitle>התראות וצלילים</SectionTitle>
+        <NotificationSettings
+          pushEnabled={privacy.push_notifications_enabled}
+          soundsEnabled={privacy.game_sounds_enabled}
+        />
       </section>
 
       <section>

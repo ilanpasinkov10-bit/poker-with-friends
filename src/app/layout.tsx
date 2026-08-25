@@ -17,7 +17,18 @@ export const metadata: Metadata = {
   description:
     'ניהול ערב הפוקר של החברים: כניסות, ז׳יטונים, ספירה סופית והתחשבנות — הכול במקום אחד.',
   applicationName: 'Poker With Friends',
+  // Web Push on iOS is only available once the app has been added to the Home
+  // Screen, which needs a manifest — so this is what makes notifications
+  // possible on an iPhone at all, not just a nicety.
+  manifest: '/manifest.webmanifest',
   appleWebApp: { capable: true, statusBarStyle: 'black-translucent', title: 'Poker Night' },
+  icons: {
+    icon: [
+      { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icon-512.png', sizes: '512x512', type: 'image/png' },
+    ],
+    apple: [{ url: '/icon-192.png', sizes: '192x192', type: 'image/png' }],
+  },
   formatDetection: { telephone: false },
 };
 

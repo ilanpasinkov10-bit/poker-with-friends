@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { guard, ok, type ActionResult } from '@/lib/action-result';
+import { notifyBuyIn } from '@/lib/push/table-events';
 import { createClient } from '@/lib/supabase/server';
 
 /**
@@ -43,11 +44,27 @@ export async function resolveRebuyRequestAction(
 ): Promise<ActionResult> {
   return guard(async () => {
     const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    const { data: request } = await supabase
+      .from('rebuy_requests')
+      .select('table_player_id')
+      .eq('id', requestId)
+      .maybeSingle();
+
     const { error } = await supabase.rpc('resolve_rebuy_request', {
       p_request: requestId,
       p_approve: approve,
     });
     if (error) throw error;
+
+    // An approval is the entry; a refusal is between the admin and that
+    // player, and is not announced to the table.
+    if (approve && request) {
+      await notifyBuyIn(request.table_player_id, user?.id ?? null);
+    }
+
     revalidatePath(`/table/${tableId}`);
     return ok();
   });
@@ -59,8 +76,14 @@ export async function adminAddBuyInAction(
 ): Promise<ActionResult> {
   return guard(async () => {
     const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     const { error } = await supabase.rpc('admin_add_buyin', { p_table_player: tablePlayerId });
     if (error) throw error;
+
+    await notifyBuyIn(tablePlayerId, user?.id ?? null);
+
     revalidatePath(`/table/${tableId}`);
     return ok();
   });
