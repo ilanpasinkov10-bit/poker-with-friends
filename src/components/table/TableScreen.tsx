@@ -60,9 +60,17 @@ function TableHeader({ model, connected }: { model: TableViewModel; connected: b
   const { table, viewer } = model;
   return (
     <header>
+      {/*
+        The status badge and the connection line are the fixed part of this
+        row — "ספירת ז׳יטונים" beside "מעודכן בזמן אמת" is about a third of a
+        320px screen — so the title is what has to bend. It wraps rather than
+        truncates: a table called "פוקר של יום חמישי" was being cut off on the
+        narrowest phones, and the name of the table is the one thing on this
+        screen nobody should have to guess at.
+      */}
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h1 className="truncate text-2xl font-black tracking-tight text-ink">{table.name}</h1>
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl font-black tracking-tight break-words text-ink">{table.name}</h1>
           <p className="mt-0.5 text-xs text-ink-faint">
             <Num>{formatDate(table.game_date)}</Num> · כניסה{' '}
             <Num>{formatMoney(table.buy_in_agorot)}</Num> ={' '}

@@ -17,6 +17,7 @@ import { computeSettlement } from '@/lib/domain/settlement';
 import type { CompletedGameRecord } from '@/lib/domain/stats';
 import type { PendingRequestView, PlayerView, TableViewModel } from '@/lib/data/table';
 import type { LeaderboardRow } from '@/lib/data/profile';
+import type { TableListItem } from '@/components/tables/TablesBrowser';
 import type {
   GameResultRow,
   PokerTableRow,
@@ -436,6 +437,44 @@ export const LONG_NAME_PLAYERS: PlayerView[] = [
   seatToPlayerView({ ...SEATS[1]!, name: 'ירדן בן-אברהם הכהן', isAdmin: false }),
   seatToPlayerView({ ...SEATS[3]!, name: 'אבישי רוזנצוויג', isGuest: true }),
 ];
+
+/**
+ * A player's table list, wide enough to be worth filtering: five statuses,
+ * Hebrew and Latin names, names that share a word, and dates spread from today
+ * back past thirty days so every date option selects something different.
+ */
+const TABLE_LIST_SPECS: {
+  name: string;
+  status: TableStatus;
+  daysAgo: number;
+  role: 'ADMIN' | 'PLAYER';
+}[] = [
+  { name: 'פוקר של יום חמישי', status: 'ACTIVE', daysAgo: 0, role: 'ADMIN' },
+  { name: 'משחק חדש אצל שי', status: 'WAITING', daysAgo: 0, role: 'PLAYER' },
+  { name: 'פוקר בשבת', status: 'COUNTING', daysAgo: 1, role: 'ADMIN' },
+  { name: 'ערב פוקר בתל אביב', status: 'COMPLETED', daysAgo: 3, role: 'PLAYER' },
+  { name: 'Home Game', status: 'COMPLETED', daysAgo: 12, role: 'ADMIN' },
+  { name: 'טורניר החברים', status: 'CANCELLED', daysAgo: 20, role: 'PLAYER' },
+  { name: 'פוקר של פעם', status: 'COMPLETED', daysAgo: 60, role: 'PLAYER' },
+];
+
+function daysBefore(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return d.toISOString().slice(0, 10);
+}
+
+export const MY_TABLES: TableListItem[] = TABLE_LIST_SPECS.map((spec, index) => ({
+  table: makeTable({
+    id: `table-${index}`,
+    name: spec.name,
+    status: spec.status,
+    game_date: daysBefore(spec.daysAgo),
+    join_code: `PW${1000 + index}`,
+  }),
+  role: spec.role,
+  playerCount: 3 + (index % 4),
+}));
 
 export const PRIVACY_SETTINGS: ProfilePrivacyRow = {
   profile_id: ADMIN_USER_ID,

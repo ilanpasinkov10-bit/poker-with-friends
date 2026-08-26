@@ -5,6 +5,7 @@ import { useToast } from '@/components/ui/Toast';
 import { EVENT_SOUND, eventToast } from '@/lib/domain/events';
 import { alertsForChange, type AlertSnapshot } from '@/lib/domain/table-alerts';
 import { playSound } from '@/lib/sound/engine';
+import { useAudioUnlock } from './useAudioUnlock';
 import type { TableViewModel } from '@/lib/data/table';
 
 /**
@@ -19,6 +20,11 @@ import type { TableViewModel } from '@/lib/data/table';
  * The two settings stay independent. Sounds follow the player's own switch;
  * toasts do not, because a silent visual note is not the thing anyone turns
  * off when they turn sounds off.
+ *
+ * Sound also needs the browser's permission, which is only ever given during a
+ * real interaction — see `useAudioUnlock`. That is armed here rather than at
+ * the app root so that a player with sounds switched off never has an audio
+ * context created for them at all.
  */
 export function useTableAlerts(model: TableViewModel, soundsEnabled: boolean) {
   const toast = useToast();
@@ -27,6 +33,8 @@ export function useTableAlerts(model: TableViewModel, soundsEnabled: boolean) {
   // re-announces what has already been announced.
   const wantsSound = useRef(soundsEnabled);
   wantsSound.current = soundsEnabled;
+
+  useAudioUnlock(soundsEnabled);
 
   const { status } = model.table;
   const { recentActivity, viewer } = model;

@@ -203,6 +203,29 @@
     width: 100%;
     max-width: 34rem;
   }
+
+  /*
+   * Cards stacked in a grid must be allowed to be narrower than their contents.
+   *
+   * A grid item's `min-width` defaults to `auto`, which resolves to its
+   * min-content size — the item refuses to be smaller than the widest thing
+   * inside it. The whole app is single-column stacks of `grid gap-*` cards, so
+   * one unbreakable row deep inside a card (a number field beside its button, a
+   * request beside its approve/reject pair) raised the floor for its card, then
+   * for the stack, then for the page, and the document scrolled sideways. That
+   * is what pushed the counting screen 138px off a 320px phone: not the header
+   * that appeared to be hanging over the edge, but a card several sections
+   * below it.
+   *
+   * Zero specificity via :where(), so any explicit Tailwind `min-w-*` still
+   * wins, and scoped to the page body so nothing outside the layout is touched.
+   * Removing the floor is only half the job — the contents also have to wrap or
+   * shrink, which is done at each of those components — but it stops a single
+   * stubborn row from ever again dragging the entire page out of the viewport.
+   */
+  .app-shell :where(.grid) > * {
+    min-width: 0;
+  }
   .card-grad {
     background-image: linear-gradient(160deg, var(--color-glow), transparent 60%);
   }
