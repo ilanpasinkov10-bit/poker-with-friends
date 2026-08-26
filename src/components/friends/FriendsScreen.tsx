@@ -3,7 +3,6 @@
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { AppBar } from '@/components/layout/AppBar';
-import { BottomNav } from '@/components/layout/BottomNav';
 import { PageShell } from '@/components/layout/PageShell';
 import { PublicProfileSheet } from '@/components/profile/PublicProfileSheet';
 import { Button } from '@/components/ui/Button';
@@ -119,7 +118,6 @@ export function FriendsScreen({
         </div>
       </PageShell>
 
-      <BottomNav />
 
       <PublicProfileSheet
         userId={profileUserId}

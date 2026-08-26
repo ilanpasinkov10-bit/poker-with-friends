@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import { BottomNav } from '@/components/layout/BottomNav';
 import { PageShell } from '@/components/layout/PageShell';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
@@ -110,7 +109,6 @@ export default async function HomePage() {
 
         <HowItWorks />
       </PageShell>
-      <BottomNav />
     </>
   );
 }

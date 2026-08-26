@@ -3,7 +3,6 @@
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useTransition } from 'react';
 import { AppBar, BackChevron, backControlClass } from '@/components/layout/AppBar';
-import { BottomNav } from '@/components/layout/BottomNav';
 import { PageShell } from '@/components/layout/PageShell';
 import { NotificationSettings } from '@/components/notifications/NotificationSettings';
 import { AppearanceControl } from '@/components/theme/AppearanceControl';
@@ -298,7 +297,6 @@ export function ProfileSettingsScreen({
         </div>
       </PageShell>
 
-      <BottomNav />
 
       <ConfirmDialog
         open={leaving}

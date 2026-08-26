@@ -7,7 +7,6 @@
  * profile and leave again, so it gets its own header and back action rather
  * than the summary card and the tab strip of the screen it sits under.
  */
-import { BottomNav } from '@/components/layout/BottomNav';
 import { PageShell } from '@/components/layout/PageShell';
 import { ProfileHeader } from '@/components/profile/ProfileHeader';
 import { ProfileTabs } from '@/components/profile/ProfileTabs';
@@ -44,7 +43,6 @@ export default async function ProfileLayout({ children }: { children: React.Reac
         </div>
         <div className="mt-5">{children}</div>
       </PageShell>
-      <BottomNav />
     </>
   );
 }
