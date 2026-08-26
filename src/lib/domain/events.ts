@@ -22,6 +22,7 @@ export const TABLE_EVENT_KINDS = [
   'GAME_STARTED',
   'ENDING_SOON',
   'GAME_ENDED',
+  'GAME_CANCELLED',
 ] as const;
 
 export type TableEventKind = (typeof TABLE_EVENT_KINDS)[number];
@@ -73,7 +74,8 @@ export type TableEvent =
     })
   | (EventBase & { kind: 'GAME_STARTED'; tableName: string })
   | (EventBase & { kind: 'ENDING_SOON'; tableName: string })
-  | (EventBase & { kind: 'GAME_ENDED'; tableName: string });
+  | (EventBase & { kind: 'GAME_ENDED'; tableName: string })
+  | (EventBase & { kind: 'GAME_CANCELLED'; tableName: string });
 
 export interface NotificationCopy {
   title: string;
@@ -116,6 +118,8 @@ export function eventSentence(event: TableEvent): string {
       return 'שעה אחרונה למשחק — זה הזמן להתארגן לספירה';
     case 'GAME_ENDED':
       return 'המשחק הסתיים — ההתחשבנות מוכנה';
+    case 'GAME_CANCELLED':
+      return 'המשחק בוטל על ידי מנהל השולחן — ללא התחשבנות';
   }
 }
 
@@ -142,6 +146,8 @@ export function eventToast(event: TableEvent): string {
       return 'שעה אחרונה למשחק';
     case 'GAME_ENDED':
       return 'המשחק הסתיים';
+    case 'GAME_CANCELLED':
+      return 'המשחק בוטל';
   }
 }
 
@@ -153,6 +159,7 @@ export const EVENT_ICON: Record<TableEventKind, string> = {
   GAME_STARTED: '🃏',
   ENDING_SOON: '⏳',
   GAME_ENDED: '🏁',
+  GAME_CANCELLED: '🚫',
 };
 
 /**
@@ -172,6 +179,9 @@ export const EVENT_SOUND: Record<TableEventKind, SoundName | null> = {
   GAME_STARTED: 'GAME_STARTED',
   ENDING_SOON: null,
   GAME_ENDED: null,
+  // No cue. A cancelled game is bad news arriving on its own; a chirp from the
+  // phone on the table would only make it worse.
+  GAME_CANCELLED: null,
 };
 
 /**

@@ -9,8 +9,16 @@ import { Num } from '@/components/ui/Num';
 import { useToast } from '@/components/ui/Toast';
 import { formatChips, formatMoney } from '@/lib/format';
 import { buyInsWord } from '@/lib/labels';
-import { canRequestRebuy, isGameOpenForBuyIns } from '@/lib/domain/permissions';
-import { cancelRebuyRequestAction, requestRebuyAction } from '@/lib/actions/buyins';
+import {
+  canAdminAddBuyIn,
+  canRequestRebuy,
+  isGameOpenForBuyIns,
+} from '@/lib/domain/permissions';
+import {
+  adminAddBuyInAction,
+  cancelRebuyRequestAction,
+  requestRebuyAction,
+} from '@/lib/actions/buyins';
 import { LeaveTableDialog } from './LeaveTableDialog';
 import type { TableViewModel } from '@/lib/data/table';
 
@@ -26,23 +34,36 @@ export function MyPlayerPanel({ model }: { model: TableViewModel }) {
   const hasPendingRequest = viewer.myPendingRequestId !== null;
   const gameOpen = isGameOpenForBuyIns(table.status);
   const atMax = player.buyInCount >= table.max_buy_ins;
-  const mayRequest = canRequestRebuy(
-    { userId: viewer.userId, isTableAdmin: viewer.isAdmin },
-    {
-      tablePlayerId: player.id,
-      ownerUserId: player.userId,
-      status: player.status,
-      buyInCount: player.buyInCount,
-    },
-    { status: table.status, maxBuyIns: table.max_buy_ins },
-    hasPendingRequest,
-  );
+
+  const actor = { userId: viewer.userId, isTableAdmin: viewer.isAdmin };
+  const self = {
+    tablePlayerId: player.id,
+    ownerUserId: player.userId,
+    status: player.status,
+    buyInCount: player.buyInCount,
+  };
+  const tableContext = { status: table.status, maxBuyIns: table.max_buy_ins };
+
+  /**
+   * The admin adds their own entry outright; everyone else asks.
+   *
+   * Sending the admin down the request path produced a request only they could
+   * approve — their own card sat waiting for their own approval, with the
+   * approval queue on the same screen. The direct path already existed for
+   * adding an entry to any other player, and it is the one that applies here
+   * too: an admin's request needs nobody's permission.
+   */
+  const addsDirectly = canAdminAddBuyIn(actor, self, tableContext);
+  const mayRequest =
+    !addsDirectly && canRequestRebuy(actor, self, tableContext, hasPendingRequest);
 
   const request = () =>
     startTransition(async () => {
-      const result = await requestRebuyAction(table.id, player.id);
+      const result = addsDirectly
+        ? await adminAddBuyInAction(table.id, player.id)
+        : await requestRebuyAction(table.id, player.id);
       if (!result.ok) toast.error(result.message);
-      else toast.success('הבקשה נשלחה למנהל השולחן');
+      else toast.success(addsDirectly ? 'נוספה לך כניסה' : 'הבקשה נשלחה למנהל השולחן');
     });
 
   const cancel = () =>
@@ -105,9 +126,9 @@ export function MyPlayerPanel({ model }: { model: TableViewModel }) {
             <p className="rounded-xl border border-line bg-surface-2 p-3 text-center text-sm font-semibold text-warn">
               הגעת למספר הכניסות המקסימלי
             </p>
-          ) : mayRequest ? (
+          ) : addsDirectly || mayRequest ? (
             <Button size="lg" block loading={pending} onClick={request}>
-              בקש כניסה נוספת
+              {addsDirectly ? 'הוסף לי כניסה' : 'בקש כניסה נוספת'}
             </Button>
           ) : null}
 

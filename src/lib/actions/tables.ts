@@ -6,7 +6,7 @@ import { guard, ok, type ActionResult } from '@/lib/action-result';
 import { AppError } from '@/lib/errors';
 import { shekelsToAgorot } from '@/lib/domain/money';
 import { requireUuid, singleRow } from '@/lib/rpc';
-import { notifyGameStarted } from '@/lib/push/table-events';
+import { notifyGameCancelled, notifyGameStarted } from '@/lib/push/table-events';
 import { createClient } from '@/lib/supabase/server';
 import { jerusalemToUtc } from '@/lib/timezone';
 
@@ -136,6 +136,11 @@ export async function setTableStatusAction(
     // is better explained by the admin than by a push.
     if (status === 'ACTIVE') {
       await notifyGameStarted(tableId, user?.id ?? null);
+    }
+    // Cancelling is worth telling everyone about: it is the answer to "are we
+    // still playing?", and unlike COUNTING it is not followed by a result.
+    if (status === 'CANCELLED') {
+      await notifyGameCancelled(tableId);
     }
 
     revalidatePath(`/table/${tableId}`);

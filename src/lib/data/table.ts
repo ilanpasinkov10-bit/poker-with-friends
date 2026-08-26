@@ -277,7 +277,12 @@ export async function loadTableView(
       activePotAgorot: pot.activePotAgorot,
       activeChips: pot.activeChips,
     },
-    recentActivity: buildTableActivity(participants, ledger),
+    recentActivity: buildTableActivity(participants, ledger, {
+      id: table.id,
+      name: table.name,
+      status: table.status,
+      updatedAt: table.updated_at,
+    }),
     canSeeEveryonesMoney: isAdmin || table.player_visibility === 'OPEN',
     results: (resultsRes.data ?? []) as GameResultRow[],
     settlements: (settlementsRes.data ?? []) as SettlementRow[],

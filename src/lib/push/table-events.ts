@@ -213,3 +213,27 @@ export async function notifyBuyInReversed(
     },
   });
 }
+
+/**
+ * The game was called off.
+ *
+ * Goes to everyone including the admin who cancelled it, for the same reason
+ * the results do: this is the answer to "are we still playing?", and the person
+ * who pressed the button still wants it on their phone. There is no settlement
+ * and no result to report — only that the game has ended without one.
+ */
+export async function notifyGameCancelled(tableId: string) {
+  const table = await tableFacts(tableId);
+  if (!table) return;
+  await notifyTable({
+    tableId,
+    tableName: table.name,
+    actorUserId: null,
+    event: {
+      id: `cancelled:${tableId}`,
+      kind: 'GAME_CANCELLED',
+      at: new Date().toISOString(),
+      tableName: table.name,
+    },
+  });
+}

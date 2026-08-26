@@ -79,7 +79,9 @@ function Framed({
   return (
     <>
       <AppBar title={title} subtitle={subtitle} backHref="/dev/preview" />
-      <PageShell withNav={withNav}>{children}</PageShell>
+      <PageShell withNav={withNav} belowAppBar>
+        {children}
+      </PageShell>
       {withNav ? <BottomNav /> : null}
     </>
   );
@@ -248,6 +250,17 @@ export const SCREENS: PreviewScreen[] = [
             pendingRequests: PENDING_REBUYS,
           })}
         />
+      </Framed>
+    ),
+  },
+  {
+    id: 'cancelled',
+    label: 'משחק שבוטל',
+    group: 'משחק חי',
+    note: 'המצב אחרי "ביטול משחק": אין התחשבנות, אין רווח והפסד, וההיסטוריה נשמרת. למנהל מוצע לפתוח שולחן חדש.',
+    render: () => (
+      <Framed title="פוקר של יום חמישי" subtitle="המשחק בוטל">
+        <TableScreen model={makeModel({ status: 'CANCELLED' })} />
       </Framed>
     ),
   },

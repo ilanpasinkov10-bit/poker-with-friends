@@ -23,7 +23,7 @@ export default async function TablePage({ params }: { params: Promise<{ id: stri
         subtitle={TABLE_STATUS_LABEL[model.table.status]}
         backHref="/"
       />
-      <PageShell>
+      <PageShell belowAppBar>
         <TableScreen model={model} />
       </PageShell>
     </>

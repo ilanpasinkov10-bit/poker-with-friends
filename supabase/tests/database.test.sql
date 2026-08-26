@@ -1188,5 +1188,100 @@ begin
   perform expect(claimed = 0, 'a second run claims nothing, so nobody is reminded twice');
 end $$;
 
+\echo '── cancelling an active game ──'
+do $$
+declare
+  admin uuid := 'a0000000-0000-4000-8000-000000000001';
+  other uuid := 'a0000000-0000-4000-8000-000000000002';
+  t public.poker_tables; seat uuid; seat_admin uuid; req uuid;
+  entries_before int; pot_before bigint;
+begin
+  perform test_as(admin);
+  t := public.create_poker_table('משחק שיבוטל', current_date, now(),
+         now() + interval '4 hours', 5000, 500, 6, 'AUTO_JOIN', 'OPEN', 'ADMIN_COUNT', true);
+  select id into seat_admin from public.table_players
+   where table_id = t.id and user_id = admin;
+
+  perform test_as(other);
+  perform public.join_table(t.join_code, 'דני');
+  select id into seat from public.table_players where table_id = t.id and user_id = other;
+
+  perform test_as(admin);
+  perform public.set_table_status(t.id, 'ACTIVE');
+  perform public.admin_add_buyin(seat);
+
+  -- An admin adds their own entry directly. This is the path the player card
+  -- now uses for the admin, instead of raising a request they must approve.
+  perform public.admin_add_buyin(seat_admin);
+  perform expect((select buy_in_count from public.table_player_totals
+                   where table_player_id = seat_admin) = 2,
+    'the admin can add an entry for themselves without a request');
+
+  -- And a request left outstanding when the game is called off.
+  perform test_as(other);
+  req := public.request_rebuy(seat);
+  perform expect((select status from public.rebuy_requests where id = req) = 'PENDING',
+    'a player has an outstanding entry request');
+
+  select count(*), sum(amount_agorot) into entries_before, pot_before
+    from public.buyin_transactions where table_id = t.id;
+
+  -- A player cannot call the game off.
+  perform expect_error(format('select public.set_table_status(%L, ''CANCELLED'')', t.id),
+    'NOT_AUTHORIZED', 'a player cannot cancel the game');
+
+  perform test_as(admin);
+  perform public.set_table_status(t.id, 'CANCELLED');
+  perform expect((select status from public.poker_tables where id = t.id) = 'CANCELLED',
+    'the admin can cancel an active game');
+
+  -- Nothing was settled. Cancelling is not finishing.
+  perform expect((select count(*) from public.game_results where table_id = t.id) = 0,
+    'no results are written for a cancelled game');
+  perform expect((select count(*) from public.settlements where table_id = t.id) = 0,
+    'no settlement is written for a cancelled game');
+  perform expect((select completed_at is null from public.poker_tables where id = t.id),
+    'a cancelled game is never marked completed');
+
+  -- Nothing was deleted. The record of the evening survives.
+  perform expect((select count(*) from public.buyin_transactions where table_id = t.id)
+                   = entries_before,
+    'every entry transaction is preserved');
+  perform expect((select sum(amount_agorot) from public.buyin_transactions where table_id = t.id)
+                   = pot_before,
+    'the money history is preserved exactly');
+  perform expect((select count(*) from public.table_players where table_id = t.id) = 2,
+    'the players are preserved');
+
+  -- The outstanding request is closed out rather than left dangling.
+  perform expect((select status from public.rebuy_requests where id = req) = 'CANCELLED',
+    'a pending entry request is closed when the game is cancelled');
+  perform expect_error(format('select public.resolve_rebuy_request(%L, true)', req),
+    'REQUEST_ALREADY_HANDLED', 'the closed request can no longer be approved');
+
+  -- The game is shut for every mutation that only makes sense while playing.
+  perform expect_error(format('select public.admin_add_buyin(%L)', seat),
+    'GAME_LOCKED', 'no new entries once cancelled');
+  perform test_as(other);
+  perform expect_error(format('select public.request_rebuy(%L)', seat),
+    'GAME_LOCKED', 'no new entry requests once cancelled');
+  perform expect_error(format('select public.leave_table(%L, 100)', seat),
+    'LEAVE_TABLE_NOT_ACTIVE', 'no cashing out of a cancelled game');
+
+  -- And it is a dead end: no route back to playing, counting or completed.
+  perform test_as(admin);
+  perform expect_error(format('select public.set_table_status(%L, ''ACTIVE'')', t.id),
+    'INVALID_TRANSITION', 'a cancelled game cannot be reopened');
+  perform expect_error(format('select public.set_table_status(%L, ''COUNTING'')', t.id),
+    'INVALID_TRANSITION', 'a cancelled game cannot move to counting');
+  perform expect_error(format('select public.finalize_game(%L, ''[]''::jsonb)', t.id),
+    'INVALID_STATUS', 'a cancelled game cannot be settled');
+
+  -- The admin can open a fresh table straight afterwards.
+  perform public.create_poker_table('המשחק הבא', current_date, now(),
+    now() + interval '4 hours', 5000, 500, 6, 'AUTO_JOIN', 'OPEN', 'ADMIN_COUNT', true);
+  raise notice 'ok    the admin can open a new table after cancelling';
+end $$;
+
 \echo ''
 \echo 'All database checks passed.'
