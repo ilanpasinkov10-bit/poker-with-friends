@@ -232,6 +232,13 @@ function SelfCountCard({ model }: { model: TableViewModel }) {
         קיבלת <Num>{formatChips(player.chipsIssued)}</Num> ז׳יטונים במהלך המשחק
       </p>
 
+      {/*
+        A number field beside its button is the row that has to give way first
+        on a narrow phone. `size` gives an <input> an intrinsic width of about
+        twenty characters, so without `min-w-0` it refuses to shrink; the button
+        gets `shrink-0` so the field takes the squeeze rather than the label
+        wrapping inside the button.
+      */}
       <div className="mt-4 flex gap-2">
         <input
           type="number"
@@ -242,9 +249,15 @@ function SelfCountCard({ model }: { model: TableViewModel }) {
           disabled={approved}
           onChange={(e) => setValue(e.target.value)}
           placeholder="0"
-          className="ltr-num h-14 min-w-0 flex-1 rounded-xl border border-line bg-surface-2 px-4 text-center text-2xl font-black text-ink disabled:opacity-60"
+          className="ltr-num h-14 w-full min-w-0 flex-1 rounded-xl border border-line bg-surface-2 px-4 text-center text-2xl font-black text-ink disabled:opacity-60"
         />
-        <Button size="lg" loading={pending} disabled={approved || value === ''} onClick={submit}>
+        <Button
+          size="lg"
+          className="shrink-0"
+          loading={pending}
+          disabled={approved || value === ''}
+          onClick={submit}
+        >
           שליחה
         </Button>
       </div>
@@ -308,7 +321,7 @@ function AdminCountRow({
       <div className="flex items-center gap-3">
         <Avatar name={name} src={avatarUrl} size="sm" />
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-bold text-ink">{name}</p>
+          <p className="text-sm font-bold break-words text-ink">{name}</p>
           <p className="text-[0.7rem] text-ink-faint">
             קיבל <Num>{formatChips(chipsIssued)}</Num> ז׳יטונים ·{' '}
             <Num>{formatMoney(totalPaidAgorot)}</Num> השקעה
@@ -331,9 +344,16 @@ function AdminCountRow({
           onChange={(e) => setValue(e.target.value)}
           placeholder="ספירה סופית"
           aria-label={`ספירה סופית עבור ${name}`}
-          className="ltr-num h-12 min-w-0 flex-1 rounded-xl border border-line bg-surface-2 px-3 text-center text-lg font-bold text-ink"
+          className="ltr-num h-12 w-full min-w-0 flex-1 rounded-xl border border-line bg-surface-2 px-3 text-center text-lg font-bold text-ink"
         />
-        <Button size="md" variant="secondary" loading={pending} disabled={value === ''} onClick={save}>
+        <Button
+          size="md"
+          variant="secondary"
+          className="shrink-0"
+          loading={pending}
+          disabled={value === ''}
+          onClick={save}
+        >
           שמור
         </Button>
       </div>

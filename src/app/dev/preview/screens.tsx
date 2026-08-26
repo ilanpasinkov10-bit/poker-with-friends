@@ -26,6 +26,7 @@ import { LivePot } from '@/components/table/LivePot';
 import { CreateTableForm } from '@/components/table/CreateTableForm';
 import { LeaderboardView } from '@/components/table/LeaderboardView';
 import { PlayerCard } from '@/components/table/PlayerCard';
+import { TablesBrowser } from '@/components/tables/TablesBrowser';
 import { TableScreen } from '@/components/table/TableScreen';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
@@ -41,6 +42,7 @@ import {
   JOIN_PREVIEW,
   LEADERBOARD,
   LEFT_PLAYERS,
+  MY_TABLES,
   LONG_NAME_PLAYERS,
   SEATED_PLAYERS,
   PENDING_PLAYER,
@@ -507,6 +509,19 @@ export const SCREENS: PreviewScreen[] = [
             settlements: SETTLEMENT_ROWS,
           })}
         />
+      </Framed>
+    ),
+  },
+  {
+    id: 'my-tables',
+    label: 'השולחנות שלי (סינון)',
+    group: 'פרופיל שחקן',
+    note:
+      'חיפוש לפי שם, וכפתור "סינון" שפותח סטטוס ותאריך. הסינונים פועלים יחד, ' +
+      'והמונה על הכפתור מונע מצב שבו סינון נשאר דולק בלי שרואים אותו.',
+    render: () => (
+      <Framed title="השולחנות שלי" subtitle="גלריית מסכים" withNav>
+        <TablesBrowser items={MY_TABLES} />
       </Framed>
     ),
   },

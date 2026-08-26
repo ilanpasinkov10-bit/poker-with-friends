@@ -19,11 +19,15 @@ export function TablePreviewCard({ table }: { table: TablePreviewData }) {
   return (
     <section className="card-grad rounded-3xl border border-line bg-surface p-5">
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h2 className="truncate text-xl font-black text-ink">{table.name}</h2>
+        {/* Same reasoning as the table header: the badge is fixed width, so the
+            name wraps rather than being cut off on a narrow phone. This is the
+            screen where someone decides whether to join — the table's name is
+            the whole point of it. */}
+        <div className="min-w-0 flex-1">
+          <h2 className="text-xl font-black break-words text-ink">{table.name}</h2>
           <p className="mt-0.5 text-sm text-ink-faint">מנהל השולחן: {table.admin_name}</p>
         </div>
-        <Badge tone={TABLE_STATUS_TONE[table.status]} dot>
+        <Badge className="shrink-0" tone={TABLE_STATUS_TONE[table.status]} dot>
           {TABLE_STATUS_LABEL[table.status]}
         </Badge>
       </div>

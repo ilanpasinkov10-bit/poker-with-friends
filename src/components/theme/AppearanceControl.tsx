@@ -38,10 +38,14 @@ export function AppearanceControl() {
                 : 'text-ink-muted hover:bg-surface-3 hover:text-ink',
             )}
           >
-            <span className="block truncate">{THEME_LABEL[option]}</span>
+            {/* Three equal columns on a 320px phone leave about eighty pixels
+                each, and "לפי המכשיר" needs more than that. Wrapping rather
+                than truncating: a taller cell costs nothing, a label reading
+                "לפי המכ…" tells the player nothing about what it does. */}
+            <span className="block leading-tight">{THEME_LABEL[option]}</span>
             <span
               className={cn(
-                'mt-0.5 block truncate text-[0.65rem] font-medium',
+                'mt-0.5 block text-[0.65rem] leading-tight font-medium',
                 active ? 'text-on-brand/80' : 'text-ink-faint',
               )}
             >
