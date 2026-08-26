@@ -1,3 +1,12 @@
+/**
+ * The profile screen and its tabs.
+ *
+ * This layout lives in a route group so that it covers /profile and its tabs
+ * without covering /profile/settings. The URLs are unchanged — a group adds no
+ * path segment — but settings is a destination you arrive at *from* the
+ * profile and leave again, so it gets its own header and back action rather
+ * than the summary card and the tab strip of the screen it sits under.
+ */
 import { BottomNav } from '@/components/layout/BottomNav';
 import { PageShell } from '@/components/layout/PageShell';
 import { ProfileHeader } from '@/components/profile/ProfileHeader';

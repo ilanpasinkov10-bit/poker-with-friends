@@ -425,6 +425,18 @@ export const HISTORY: CompletedGameRecord[] = GAME_RESULTS_ILS.map((profitIls, i
   };
 });
 
+/**
+ * The name/badge pressure case: a long Hebrew name on the seat that also
+ * carries the "מנהל שולחן" badge, which is exactly where the name used to be
+ * truncated. Kept as a fixture so the gallery shows the worst case rather than
+ * the comfortable one.
+ */
+export const LONG_NAME_PLAYERS: PlayerView[] = [
+  seatToPlayerView({ ...SEATS[0]!, name: 'אילן פסינקוב' }),
+  seatToPlayerView({ ...SEATS[1]!, name: 'ירדן בן-אברהם הכהן', isAdmin: false }),
+  seatToPlayerView({ ...SEATS[3]!, name: 'אבישי רוזנצוויג', isGuest: true }),
+];
+
 export const PRIVACY_SETTINGS: ProfilePrivacyRow = {
   profile_id: ADMIN_USER_ID,
   share_stats_with_table_members: true,
