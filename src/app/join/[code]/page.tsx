@@ -20,7 +20,7 @@ export default async function JoinTablePage({ params }: { params: Promise<{ code
     return (
       <>
         <AppBar title="הצטרפות לשולחן" backHref="/join" />
-        <PageShell>
+        <PageShell belowAppBar>
           <div className="mt-8 rounded-2xl border border-loss/30 bg-loss-soft p-6 text-center">
             <p className="text-lg font-bold text-loss">{preview.message}</p>
             <p className="mt-2 text-sm text-ink-muted">בדקו את הקוד מול מנהל השולחן ונסו שוב.</p>
@@ -45,7 +45,7 @@ export default async function JoinTablePage({ params }: { params: Promise<{ code
   return (
     <>
       <AppBar title="הוזמנת לשולחן" backHref="/join" />
-      <PageShell>
+      <PageShell belowAppBar>
         <TablePreviewCard table={{ ...table, status }} />
 
         {closed ? (

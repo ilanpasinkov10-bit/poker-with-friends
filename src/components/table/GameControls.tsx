@@ -33,6 +33,7 @@ export function GameControls({ table }: { table: PokerTableRow }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [confirmCounting, setConfirmCounting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmCancel, setConfirmCancel] = useState(false);
 
   // Deletion is only ever offered before the game begins; the database
   // enforces the same rule, so hiding the button is convenience, not security.
@@ -61,6 +62,7 @@ export function GameControls({ table }: { table: PokerTableRow }) {
       if (!result.ok) toast.error(result.message);
       else toast.success(message);
       setConfirmCounting(false);
+      setConfirmCancel(false);
     });
 
   return (
@@ -73,14 +75,22 @@ export function GameControls({ table }: { table: PokerTableRow }) {
         ) : null}
 
         {table.status === 'ACTIVE' ? (
-          <div className="grid grid-cols-2 gap-2">
-            <Button variant="secondary" size="lg" onClick={() => setExtendOpen(true)}>
-              הארך משחק
+          <>
+            <div className="grid grid-cols-2 gap-2">
+              <Button variant="secondary" size="lg" onClick={() => setExtendOpen(true)}>
+                הארך משחק
+              </Button>
+              <Button variant="warn" size="lg" onClick={() => setConfirmCounting(true)}>
+                סיים משחק
+              </Button>
+            </div>
+            {/* Deliberately apart from the pair above and styled as
+                destructive: cancelling ends the night with no settlement at
+                all, which is a very different thing from finishing it. */}
+            <Button variant="danger" size="md" block onClick={() => setConfirmCancel(true)}>
+              ביטול משחק
             </Button>
-            <Button variant="warn" size="lg" onClick={() => setConfirmCounting(true)}>
-              סיים משחק
-            </Button>
-          </div>
+          </>
         ) : null}
 
         {table.status === 'COUNTING' ? (
@@ -130,6 +140,18 @@ export function GameControls({ table }: { table: PokerTableRow }) {
         loading={pending}
         onConfirm={remove}
         onCancel={() => setConfirmDelete(false)}
+      />
+
+      <ConfirmDialog
+        open={confirmCancel}
+        title="ביטול משחק"
+        message="האם אתה בטוח שברצונך לבטל את המשחק? המשחק יבוטל ללא ביצוע התחשבנות."
+        confirmLabel="ביטול המשחק"
+        cancelLabel="חזרה"
+        tone="danger"
+        loading={pending}
+        onConfirm={() => setStatus('CANCELLED', 'המשחק בוטל')}
+        onCancel={() => setConfirmCancel(false)}
       />
 
       <ConfirmDialog

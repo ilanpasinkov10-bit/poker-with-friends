@@ -21,7 +21,7 @@ export default async function SignInPage({
   return (
     <>
       <AppBar title="התחברות" backHref="/" />
-      <PageShell>
+      <PageShell belowAppBar>
         <p className="mb-6 text-sm text-ink-muted">
           התחברו כדי לפתוח שולחנות ולשמור את היסטוריית המשחקים שלכם.
         </p>

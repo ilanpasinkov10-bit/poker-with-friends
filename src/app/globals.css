@@ -192,6 +192,12 @@
   .safe-top {
     padding-top: max(0.5rem, env(safe-area-inset-top));
   }
+  /* The page body's own top inset, for screens with no AppBar to reserve it.
+     Keeps the usual 1rem in a browser, where the inset is zero, and clears the
+     status bar and Dynamic Island when installed to the Home Screen. */
+  .safe-page-top {
+    padding-top: max(1rem, env(safe-area-inset-top));
+  }
   .app-shell {
     margin-inline: auto;
     width: 100%;

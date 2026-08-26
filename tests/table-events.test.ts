@@ -16,6 +16,14 @@ import {
   type ReminderState,
 } from '@/lib/domain/ending-soon';
 import { computePotTotals } from '@/lib/domain/participation';
+import {
+  canAdminAddBuyIn,
+  canApproveRebuy,
+  canRequestRebuy,
+  canTransition,
+  finalizeReadiness,
+  isGameOpenForBuyIns,
+} from '@/lib/domain/permissions';
 import { alertsForChange, type AlertSnapshot } from '@/lib/domain/table-alerts';
 
 /**
@@ -589,5 +597,142 @@ describe('the sound each event owes', () => {
   it('leaves the notification-only events silent', () => {
     expect(EVENT_SOUND.ENDING_SOON).toBeNull();
     expect(EVENT_SOUND.GAME_ENDED).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Who adds an entry, and who has to ask
+// ---------------------------------------------------------------------------
+describe('an admin adding an entry for themselves', () => {
+  const table = { status: 'ACTIVE' as const, maxBuyIns: 6 };
+  const seat = {
+    tablePlayerId: 'seat-admin',
+    ownerUserId: 'user-admin',
+    status: 'ACTIVE' as const,
+    buyInCount: 2,
+  };
+  const admin = { userId: 'user-admin', isTableAdmin: true };
+  const player = { userId: 'user-dani', isTableAdmin: false };
+
+  it('is allowed to add it directly', () => {
+    // The bug was routing the admin down the request path, which produced a
+    // request only they could approve — their own card waiting on their own
+    // approval, with the approval queue on the same screen.
+    expect(canAdminAddBuyIn(admin, seat, table)).toBe(true);
+  });
+
+  it('still lets a normal player only ask', () => {
+    const own = { ...seat, tablePlayerId: 'seat-dani', ownerUserId: 'user-dani' };
+    expect(canAdminAddBuyIn(player, own, table)).toBe(false);
+    expect(canRequestRebuy(player, own, table, false)).toBe(true);
+  });
+
+  it('refuses the direct path once the player is at the cap', () => {
+    expect(canAdminAddBuyIn(admin, { ...seat, buyInCount: 6 }, table)).toBe(false);
+  });
+
+  it('refuses the direct path once the game is closed to entries', () => {
+    for (const status of ['COUNTING', 'COMPLETED', 'CANCELLED'] as const) {
+      expect(canAdminAddBuyIn(admin, seat, { ...table, maxBuyIns: 6, status })).toBe(false);
+    }
+  });
+
+  it('never lets anyone approve their own request, admin included', () => {
+    // The direct path is what an admin uses; self-approval stays forbidden.
+    expect(canApproveRebuy(admin, seat, table)).toBe(true);
+    expect(canApproveRebuy(player, seat, table)).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Cancelling an active game
+// ---------------------------------------------------------------------------
+describe('cancelling a game', () => {
+  const admin = { userId: 'user-admin', isTableAdmin: true };
+  const player = { userId: 'user-dani', isTableAdmin: false };
+
+  it('is a transition the admin may make from an active game', () => {
+    expect(canTransition(admin, 'ACTIVE', 'CANCELLED')).toBe(true);
+    expect(canTransition(admin, 'WAITING', 'CANCELLED')).toBe(true);
+  });
+
+  it('is not available to a player', () => {
+    expect(canTransition(player, 'ACTIVE', 'CANCELLED')).toBe(false);
+  });
+
+  it('is a dead end — a cancelled game never becomes active or completed', () => {
+    for (const to of ['ACTIVE', 'COUNTING', 'COMPLETED'] as const) {
+      expect(canTransition(admin, 'CANCELLED', to)).toBe(false);
+    }
+  });
+
+  it('is never confused with finishing the game', () => {
+    // COMPLETED is reachable only through finalize_game, which is what
+    // computes profit and loss. Cancelling cannot reach it.
+    expect(canTransition(admin, 'ACTIVE', 'COMPLETED')).toBe(false);
+    expect(canTransition(admin, 'COUNTING', 'COMPLETED')).toBe(false);
+  });
+
+  it('closes the game to further entries', () => {
+    expect(isGameOpenForBuyIns('CANCELLED')).toBe(false);
+    expect(isGameOpenForBuyIns('ACTIVE')).toBe(true);
+  });
+
+  it('can never be settled, whatever the chip counts say', () => {
+    const players = [{ chipsIssued: 500, submittedChips: 500, approvedChips: 500 }];
+    expect(finalizeReadiness(admin, { status: 'CANCELLED', maxBuyIns: 6 }, players)).toEqual({
+      ready: false,
+      reason: 'WRONG_STATUS',
+    });
+  });
+
+  it('appears in the activity feed, derived from the status', () => {
+    const events = buildTableActivity([], [], {
+      id: 'table-1',
+      name: 'פוקר של יום חמישי',
+      status: 'CANCELLED',
+      updatedAt: NOW,
+    });
+    const cancelled = events.find((e) => e.kind === 'GAME_CANCELLED');
+    expect(cancelled).toBeDefined();
+    expect(eventSentence(cancelled!)).toBe('המשחק בוטל על ידי מנהל השולחן — ללא התחשבנות');
+    expect(eventToast(cancelled!)).toBe('המשחק בוטל');
+  });
+
+  it('adds nothing to the feed while the game is still running', () => {
+    const events = buildTableActivity([], [], {
+      id: 'table-1',
+      name: 'פוקר של יום חמישי',
+      status: 'ACTIVE',
+      updatedAt: NOW,
+    });
+    expect(events.some((e) => e.kind === 'GAME_CANCELLED')).toBe(false);
+  });
+
+  it('leaves the entry history in the feed untouched', () => {
+    // Cancelling must not erase what happened; the entries are still events.
+    const seat = {
+      id: 'seat-a',
+      userId: 'user-dani',
+      displayName: 'דני',
+      joinedAt: '2026-08-23T18:00:00.000Z',
+      leftAt: null,
+      cashOut: null,
+    };
+    const events = buildTableActivity(
+      [seat],
+      [
+        tx({ id: 'tx1', player: 'seat-a', created_at: '2026-08-23T18:00:00.000Z' }),
+        tx({ id: 'tx2', player: 'seat-a', created_at: '2026-08-23T19:00:00.000Z' }),
+      ],
+      { id: 'table-1', name: 'ט', status: 'CANCELLED', updatedAt: NOW },
+    );
+    expect(events.filter((e) => e.kind === 'PLAYER_JOINED')).toHaveLength(1);
+    expect(events.filter((e) => e.kind === 'BUY_IN')).toHaveLength(1);
+    expect(events.filter((e) => e.kind === 'GAME_CANCELLED')).toHaveLength(1);
+  });
+
+  it('makes no sound — bad news does not need a chirp', () => {
+    expect(EVENT_SOUND.GAME_CANCELLED).toBeNull();
   });
 });

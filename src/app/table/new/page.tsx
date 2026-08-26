@@ -15,7 +15,7 @@ export default async function NewTablePage() {
   return (
     <>
       <AppBar title="פתיחת שולחן" subtitle="הגדרות ערב הפוקר" backHref="/" />
-      <PageShell>
+      <PageShell belowAppBar>
         <CreateTableForm
           defaultDate={todayInJerusalem()}
           defaultStart={startTime}

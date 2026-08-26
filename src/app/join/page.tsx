@@ -8,7 +8,7 @@ export default function JoinCodePage() {
   return (
     <>
       <AppBar title="הצטרפות עם קוד" backHref="/" />
-      <PageShell>
+      <PageShell belowAppBar>
         <p className="mb-6 text-sm text-ink-muted">
           הזינו את קוד השולחן שקיבלתם ממנהל השולחן. לא צריך חשבון.
         </p>

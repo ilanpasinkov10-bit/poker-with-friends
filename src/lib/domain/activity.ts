@@ -48,13 +48,39 @@ export interface ActivityLedgerRow {
   reverses_transaction_id: string | null;
 }
 
+/**
+ * Just enough of the table for the events that belong to the game rather than
+ * to a player.
+ */
+export interface ActivityTable {
+  id: string;
+  name: string;
+  status: string;
+  /** When the row last changed. For a cancelled game, when it was cancelled. */
+  updatedAt: string;
+}
+
 export function buildTableActivity(
   players: readonly ActivityPlayer[],
   ledger: readonly ActivityLedgerRow[],
+  table?: ActivityTable,
   limit: number = ACTIVITY_HISTORY_LIMIT,
 ): TableEvent[] {
   const byId = new Map(players.map((p) => [p.id, p] as const));
   const events: TableEvent[] = [];
+
+  // Cancelling is a change of status, not a row anyone writes, so the feed
+  // entry is derived from the status itself. `updated_at` is the timestamp:
+  // nothing else touches a cancelled table afterwards, so in practice it is
+  // the moment it was cancelled.
+  if (table && table.status === 'CANCELLED') {
+    events.push({
+      id: `cancelled:${table.id}`,
+      kind: 'GAME_CANCELLED',
+      at: table.updatedAt,
+      tableName: table.name,
+    });
+  }
 
   for (const player of players) {
     events.push({

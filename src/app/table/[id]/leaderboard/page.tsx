@@ -32,7 +32,7 @@ export default async function LeaderboardPage({ params }: { params: Promise<{ id
         subtitle={scope === 'GROUP' ? `כל המשחקים של ${table.name}` : table.name}
         backHref={`/table/${id}`}
       />
-      <PageShell>
+      <PageShell belowAppBar>
         <LeaderboardView rows={rows} />
       </PageShell>
     </>

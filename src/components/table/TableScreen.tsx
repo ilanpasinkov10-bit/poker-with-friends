@@ -51,9 +51,7 @@ export function TableScreen({ model }: { model: TableViewModel }) {
         </>
       ) : null}
       {table.status === 'COMPLETED' ? <ResultsPanel model={model} /> : null}
-      {table.status === 'CANCELLED' ? (
-        <EmptyState emoji="🚫" title="המשחק בוטל" description="מנהל השולחן ביטל את המשחק." />
-      ) : null}
+      {table.status === 'CANCELLED' ? <CancelledPanel isAdmin={viewer.isAdmin} /> : null}
     </div>
   );
 }
@@ -211,6 +209,40 @@ function LiveSection({ model }: { model: TableViewModel }) {
         onClose={() => setProfileUserId(null)}
       />
     </>
+  );
+}
+
+/**
+ * A cancelled game.
+ *
+ * Says plainly that no settlement happened, because the difference between
+ * "cancelled" and "finished" is the whole point: there is no result, nobody
+ * owes anybody, and nothing was calculated. The record is kept — entries and
+ * history are all still here — which is worth saying so nobody assumes the
+ * evening was erased.
+ */
+function CancelledPanel({ isAdmin }: { isAdmin: boolean }) {
+  return (
+    <Card className="text-center">
+      <p className="text-3xl" aria-hidden>
+        🚫
+      </p>
+      <p className="mt-2 text-lg font-black text-loss">המשחק בוטל</p>
+      <p className="mt-1 text-sm text-ink-muted">
+        המשחק בוטל ללא התחשבנות — לא חושבו רווחים או הפסדים לאף שחקן.
+      </p>
+      <p className="mt-2 text-xs text-ink-faint">
+        הכניסות וההיסטוריה של השולחן נשמרו ואפשר לצפות בהן.
+      </p>
+      {isAdmin ? (
+        <Link
+          href="/table/new"
+          className="mt-4 inline-flex h-11 items-center justify-center rounded-xl bg-brand px-5 text-sm font-bold text-on-brand"
+        >
+          פתיחת שולחן חדש
+        </Link>
+      ) : null}
+    </Card>
   );
 }
 

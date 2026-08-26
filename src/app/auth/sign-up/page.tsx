@@ -25,7 +25,7 @@ export default async function SignUpPage({
   return (
     <>
       <AppBar title={upgradingGuest ? 'שמירת הפרופיל' : 'הרשמה'} backHref="/" />
-      <PageShell>
+      <PageShell belowAppBar>
         <p className="mb-6 text-sm text-ink-muted">
           {upgradingGuest
             ? 'שמרו את הפרופיל שלכם כדי לשמור על היסטוריית המשחקים והסטטיסטיקות.'
