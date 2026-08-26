@@ -6,16 +6,22 @@ import { formatSignedMoney } from '@/lib/format';
 import { gamesWord } from '@/lib/labels';
 import type { LifetimeStats } from '@/lib/domain/stats';
 
+const CHIP =
+  'inline-flex h-8 items-center gap-1.5 rounded-full border border-line bg-surface-2 px-3 text-xs font-semibold text-ink-muted';
+
 export function ProfileHeader({
   name,
   avatarUrl,
   stats,
   tableCount,
+  pendingRequests = 0,
 }: {
   name: string;
   avatarUrl: string | null;
   stats: LifetimeStats;
   tableCount: number;
+  /** Friend requests waiting to be answered. */
+  pendingRequests?: number;
 }) {
   return (
     <header className="card-grad rounded-3xl border border-line bg-surface p-5">
@@ -26,12 +32,21 @@ export function ProfileHeader({
           <p className="mt-0.5 text-sm text-ink-faint">
             {gamesWord(stats.gamesPlayed)}
           </p>
-          <Link
-            href="/profile/settings"
-            className="mt-2 inline-flex h-8 items-center rounded-full border border-line bg-surface-2 px-3 text-xs font-semibold text-ink-muted"
-          >
-            הגדרות פרופיל
-          </Link>
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            <Link href="/profile/settings" className={CHIP}>
+              הגדרות פרופיל
+            </Link>
+            <Link href="/profile/friends" className={CHIP}>
+              חברים
+              {/* Requests waiting are the only reason to open this screen
+                  without being asked to, so the count is the entry point. */}
+              {pendingRequests > 0 ? (
+                <span className="grid size-4 place-items-center rounded-full bg-brand text-[0.6rem] font-black text-on-brand">
+                  <Num>{pendingRequests}</Num>
+                </span>
+              ) : null}
+            </Link>
+          </div>
         </div>
       </div>
 

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Num } from '@/components/ui/Num';
 import { useToast } from '@/components/ui/Toast';
+import { InviteFriendsButton } from '@/components/friends/InviteFriendsButton';
 import { joinPath, joinUrl } from '@/lib/domain/join-link';
 import { QrJoinModal } from './QrJoinModal';
 
@@ -59,6 +60,12 @@ export function JoinCodeCard({ joinCode, tableName }: { joinCode: string; tableN
         <ShareButton onClick={share} primary>
           שתף
         </ShareButton>
+      </div>
+
+      {/* Reuses the very link above: inviting a friend is a way of *sending*
+          the join link, not a second way into the table. */}
+      <div className="mt-2">
+        <InviteFriendsButton tableName={tableName} joinCode={joinCode} />
       </div>
 
       <QrJoinModal

@@ -14,12 +14,14 @@ import { ProfileTabs } from '@/components/profile/ProfileTabs';
 import { requireRegisteredUser } from '@/lib/auth';
 import { computeLifetimeStats, summariseByGroup } from '@/lib/domain/stats';
 import { loadPlayerHistory } from '@/lib/data/profile';
+import { countIncomingRequests } from '@/lib/data/friends';
 
 export const dynamic = 'force-dynamic';
 
 export default async function ProfileLayout({ children }: { children: React.ReactNode }) {
   const user = await requireRegisteredUser('/profile');
   const { games } = await loadPlayerHistory(user.id);
+  const pendingRequests = await countIncomingRequests(user.id);
   const stats = computeLifetimeStats(games);
   const groups = summariseByGroup(games);
 
@@ -31,6 +33,7 @@ export default async function ProfileLayout({ children }: { children: React.Reac
           avatarUrl={user.profile?.avatar_url ?? null}
           stats={stats}
           tableCount={groups.length}
+          pendingRequests={pendingRequests}
         />
         <div className="mt-5">
           <ProfileTabs />

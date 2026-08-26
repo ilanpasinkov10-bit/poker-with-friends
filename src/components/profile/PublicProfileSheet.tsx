@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { FriendActionButton } from '@/components/friends/FriendActionButton';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
 import { LoadingBlock } from '@/components/ui/EmptyState';
@@ -82,6 +83,15 @@ export function PublicProfileSheet({
               ) : null}
             </div>
           </header>
+
+          {/* Renders nothing for yourself, for a guest, or before the
+              relationship is known — so the sheet is unchanged everywhere it
+              does not apply. */}
+          <FriendActionButton
+            userId={profile.user_id}
+            isSelf={profile.is_self}
+            isGuest={profile.is_guest}
+          />
 
           {profile.is_guest ? (
             <p className="rounded-xl bg-surface-2 px-4 py-3 text-center text-sm text-ink-muted">

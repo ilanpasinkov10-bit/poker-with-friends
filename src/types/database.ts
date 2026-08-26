@@ -33,6 +33,24 @@ export type ProfilePrivacyRow = {
   updated_at: string;
 }
 
+export type FriendshipStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED';
+
+/**
+ * One row per *pair* of users, with the ids held in canonical order
+ * (`user_a < user_b`). See migration 0013: that ordering is what makes a
+ * duplicate request, and friending yourself, impossible in the database rather
+ * than in code.
+ */
+export type FriendshipRow = {
+  user_a: string;
+  user_b: string;
+  status: FriendshipStatus;
+  /** Which of the two sent the request. Always user_a or user_b. */
+  requested_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
 /** One browser or device that has accepted push permission. */
 export type PushSubscriptionRow = {
   id: string;
@@ -223,6 +241,7 @@ export type Database = {
       settlements: ReadOnly<SettlementRow>;
       game_corrections: ReadOnly<GameCorrectionRow>;
       saved_players: Writable<SavedPlayerRow>;
+      friendships: ReadOnly<FriendshipRow>;
     };
     Views: {
       table_player_totals: ReadOnly<TablePlayerTotalsRow>;
@@ -247,6 +266,11 @@ export type Database = {
         };
         Returns: PokerTableRow;
       };
+      send_friend_request: { Args: { p_target: string }; Returns: string };
+      respond_to_friend_request: { Args: { p_from: string; p_accept: boolean }; Returns: string };
+      cancel_friend_request: { Args: { p_target: string }; Returns: undefined };
+      remove_friend: { Args: { p_target: string }; Returns: undefined };
+      search_users: { Args: { p_query: string }; Returns: unknown };
       resolve_join_request: { Args: { p_table_player: string; p_approve: boolean }; Returns: undefined };
       remove_player: { Args: { p_table_player: string }; Returns: undefined };
       request_rebuy: { Args: { p_table_player: string }; Returns: string };
