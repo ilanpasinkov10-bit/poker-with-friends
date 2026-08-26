@@ -3,14 +3,14 @@ import { BottomNav } from '@/components/layout/BottomNav';
 import { PageShell } from '@/components/layout/PageShell';
 import { TablesBrowser } from '@/components/tables/TablesBrowser';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { requireAnyUser } from '@/lib/auth';
+import { requireUserId } from '@/lib/auth';
 import { loadMyTables } from '@/lib/data/profile';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'השולחנות שלי' };
 
 export default async function MyTablesPage() {
-  const user = await requireAnyUser('/tables');
+  const user = await requireUserId('/tables');
   const tables = await loadMyTables(user.id);
 
   return (

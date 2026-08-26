@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation';
 import { AppBar } from '@/components/layout/AppBar';
 import { PageShell } from '@/components/layout/PageShell';
 import { LeaderboardView } from '@/components/table/LeaderboardView';
-import { requireAnyUser } from '@/lib/auth';
+import { requireUserId } from '@/lib/auth';
 import { isUuid } from '@/lib/domain/ids';
 import { loadTableLeaderboard } from '@/lib/data/profile';
 import { createClient } from '@/lib/supabase/server';
@@ -13,7 +13,7 @@ export default async function LeaderboardPage({ params }: { params: Promise<{ id
   const { id } = await params;
   if (!isUuid(id)) notFound();
 
-  await requireAnyUser(`/table/${id}/leaderboard`);
+  await requireUserId(`/table/${id}/leaderboard`);
 
   const supabase = await createClient();
   const { data: table } = await supabase
