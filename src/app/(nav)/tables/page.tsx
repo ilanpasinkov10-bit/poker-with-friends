@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import { BottomNav } from '@/components/layout/BottomNav';
 import { PageShell } from '@/components/layout/PageShell';
 import { TablesBrowser } from '@/components/tables/TablesBrowser';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -49,7 +48,6 @@ export default async function MyTablesPage() {
           <TablesBrowser items={tables} />
         )}
       </PageShell>
-      <BottomNav />
     </>
   );
 }

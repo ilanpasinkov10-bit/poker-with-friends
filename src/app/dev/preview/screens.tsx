@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 
-import HomePage from '@/app/page';
+import HomePage from '@/app/(nav)/page';
 import JoinCodePage from '@/app/join/page';
 import SignInPage from '@/app/auth/sign-in/page';
 import SignUpPage from '@/app/auth/sign-up/page';
@@ -106,6 +106,20 @@ function FakeAdminActions() {
       <span className="grid size-10 place-items-center rounded-xl border border-line bg-surface-2 text-ink-muted">
         ⋯
       </span>
+    </>
+  );
+}
+
+/**
+ * The bottom navigation the `(nav)` layout provides in the real app. Screens
+ * inside that layout no longer render it themselves, so the gallery adds it
+ * here to keep a preview looking like the screen it previews.
+ */
+function WithNav({ children }: { children: ReactNode }) {
+  return (
+    <>
+      {children}
+      <BottomNav />
     </>
   );
 }
@@ -524,11 +538,13 @@ export const SCREENS: PreviewScreen[] = [
       'שלוש לשוניות: החברים שלי, בקשות חברות וחיפוש. שורה אחת משותפת לכולן, ' +
       'שנשברת לשתי שורות כשאין מקום לשם ולכפתורים באותה שורה.',
     render: () => (
-      <FriendsScreen
-        friends={FRIENDS}
-        incoming={INCOMING_REQUESTS}
-        outgoing={OUTGOING_REQUESTS}
-      />
+      <WithNav>
+        <FriendsScreen
+          friends={FRIENDS}
+          incoming={INCOMING_REQUESTS}
+          outgoing={OUTGOING_REQUESTS}
+        />
+      </WithNav>
     ),
   },
   {
@@ -536,7 +552,11 @@ export const SCREENS: PreviewScreen[] = [
     label: 'חברים — ריק',
     group: 'פרופיל שחקן',
     note: 'המצב ההתחלתי, לפני שנוספו חברים או התקבלו בקשות.',
-    render: () => <FriendsScreen friends={[]} incoming={[]} outgoing={[]} />,
+    render: () => (
+      <WithNav>
+        <FriendsScreen friends={[]} incoming={[]} outgoing={[]} />
+      </WithNav>
+    ),
   },
   {
     id: 'my-tables',
@@ -637,11 +657,13 @@ export const SCREENS: PreviewScreen[] = [
       'המסך האמיתי, עם חזרה לפרופיל בראש הדף. שם התצוגה, הצלילים והפרטיות נשמרים ' +
       'בכפתור "שמור שינויים"; התמונה, ההתראות והמראה חלים מיד.',
     render: () => (
-      <ProfileSettingsScreen
-        displayName={PROFILE.displayName}
-        avatarUrl={PROFILE.avatarUrl}
-        privacy={PRIVACY_SETTINGS}
-      />
+      <WithNav>
+        <ProfileSettingsScreen
+          displayName={PROFILE.displayName}
+          avatarUrl={PROFILE.avatarUrl}
+          privacy={PRIVACY_SETTINGS}
+        />
+      </WithNav>
     ),
   },
   {

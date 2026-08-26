@@ -1,4 +1,3 @@
-import { BottomNav } from '@/components/layout/BottomNav';
 import { PageShell } from '@/components/layout/PageShell';
 import { LeaderboardList } from '@/components/leaderboard/LeaderboardList';
 import { PeriodTabs } from '@/components/leaderboard/PeriodTabs';
@@ -48,7 +47,6 @@ export default async function LeaderboardPage({
           בהגדרות הפרופיל.
         </p>
       </PageShell>
-      <BottomNav />
     </>
   );
 }
