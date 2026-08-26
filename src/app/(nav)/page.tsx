@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { PendingLink } from '@/components/layout/PendingLink';
 import { PageShell } from '@/components/layout/PageShell';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
@@ -29,13 +30,13 @@ export default async function HomePage() {
             <h1 className="text-2xl font-black tracking-tight text-ink">ערב הפוקר שלכם</h1>
           </div>
           {user ? (
-            <Link href="/profile" aria-label="הפרופיל שלי">
+            <PendingLink href="/profile" aria-label="הפרופיל שלי" spinner={false}>
               <Avatar
                 name={user.profile?.display_name ?? 'שחקן'}
                 src={user.profile?.avatar_url}
                 ring
               />
-            </Link>
+            </PendingLink>
           ) : null}
         </div>
 

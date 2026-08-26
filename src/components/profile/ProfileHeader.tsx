@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import { PendingLink } from '@/components/layout/PendingLink';
 import { Avatar } from '@/components/ui/Avatar';
 import { Num } from '@/components/ui/Num';
 import { cn } from '@/lib/cn';
@@ -33,10 +33,10 @@ export function ProfileHeader({
             {gamesWord(stats.gamesPlayed)}
           </p>
           <div className="mt-2 flex flex-wrap items-center gap-1.5">
-            <Link href="/profile/settings" className={CHIP}>
+            <PendingLink href="/profile/settings" className={CHIP}>
               הגדרות פרופיל
-            </Link>
-            <Link href="/profile/friends" className={CHIP}>
+            </PendingLink>
+            <PendingLink href="/profile/friends" className={CHIP}>
               חברים
               {/* Requests waiting are the only reason to open this screen
                   without being asked to, so the count is the entry point. */}
@@ -45,7 +45,7 @@ export function ProfileHeader({
                   <Num>{pendingRequests}</Num>
                 </span>
               ) : null}
-            </Link>
+            </PendingLink>
           </div>
         </div>
       </div>

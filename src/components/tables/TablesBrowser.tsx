@@ -1,6 +1,6 @@
 'use client';
 
-import Link from 'next/link';
+import { PendingCardLink } from '@/components/layout/PendingLink';
 import { useMemo, useState } from 'react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -237,7 +237,7 @@ function TableList({ items }: { items: TableListItem[] }) {
     <ul className="grid gap-2">
       {items.map(({ table, role, playerCount }) => (
         <Card as="li" key={table.id} className="p-0">
-          <Link href={`/table/${table.id}`} className="block p-4">
+          <PendingCardLink href={`/table/${table.id}`}>
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
                 <p className="font-bold break-words text-ink">{table.name}</p>
@@ -261,7 +261,7 @@ function TableList({ items }: { items: TableListItem[] }) {
               <Num>{table.max_buy_ins}</Num> כניסות · קוד{' '}
               <Num className="font-bold text-ink-muted">{table.join_code}</Num>
             </p>
-          </Link>
+          </PendingCardLink>
         </Card>
       ))}
     </ul>
