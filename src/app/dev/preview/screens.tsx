@@ -13,15 +13,13 @@ import { JoinTableForm } from '@/components/join/JoinTableForm';
 import { LeaderboardList } from '@/components/leaderboard/LeaderboardList';
 import { PeriodTabs } from '@/components/leaderboard/PeriodTabs';
 import { TablePreviewCard } from '@/components/join/TablePreviewCard';
-import { AvatarUploader } from '@/components/profile/AvatarUploader';
 import { GroupsView } from '@/components/profile/GroupsView';
 import { HistoryView } from '@/components/profile/HistoryView';
 import { ProfileHeader } from '@/components/profile/ProfileHeader';
 import { ProfileOverview } from '@/components/profile/ProfileOverview';
-import { ProfileSettingsForm } from '@/components/profile/ProfileSettingsForm';
+import { ProfileSettingsScreen } from '@/components/profile/ProfileSettingsScreen';
 import { ProfileTabs } from '@/components/profile/ProfileTabs';
 import { StatisticsView } from '@/components/profile/StatisticsView';
-import { NotificationSettings } from '@/components/notifications/NotificationSettings';
 import { AppearanceControl } from '@/components/theme/AppearanceControl';
 import { JoinCodeCard } from '@/components/table/JoinCodeCard';
 import { LivePot } from '@/components/table/LivePot';
@@ -43,6 +41,7 @@ import {
   JOIN_PREVIEW,
   LEADERBOARD,
   LEFT_PLAYERS,
+  LONG_NAME_PLAYERS,
   SEATED_PLAYERS,
   PENDING_PLAYER,
   PENDING_REBUYS,
@@ -83,6 +82,24 @@ function Framed({
         {children}
       </PageShell>
       {withNav ? <BottomNav /> : null}
+    </>
+  );
+}
+
+/**
+ * The admin's two buttons, at their real size and without their behaviour.
+ * They are what squeezes the name column on a narrow phone, so a gallery of
+ * player cards is not honest without them.
+ */
+function FakeAdminActions() {
+  return (
+    <>
+      <span className="grid size-10 place-items-center rounded-xl bg-brand text-xl font-black text-on-brand">
+        +
+      </span>
+      <span className="grid size-10 place-items-center rounded-xl border border-line bg-surface-2 text-ink-muted">
+        ⋯
+      </span>
     </>
   );
 }
@@ -573,35 +590,17 @@ export const SCREENS: PreviewScreen[] = [
   },
   {
     id: 'profile-settings',
-    label: 'הגדרות ופרטיות',
+    label: 'הגדרות פרופיל',
     group: 'פרופיל שחקן',
-    note: 'העלאת תמונת פרופיל, שם תצוגה ובקרות פרטיות.',
+    note:
+      'המסך האמיתי, עם חזרה לפרופיל בראש הדף. שם התצוגה, הצלילים והפרטיות נשמרים ' +
+      'בכפתור "שמור שינויים"; התמונה, ההתראות והמראה חלים מיד.',
     render: () => (
-      <ProfileFrame>
-        <div className="grid gap-6">
-          <section>
-            <SectionTitle>תמונת פרופיל</SectionTitle>
-            <Card>
-              <AvatarUploader name={PROFILE.displayName} avatarUrl={PROFILE.avatarUrl} />
-            </Card>
-          </section>
-          <ProfileSettingsForm displayName={PROFILE.displayName} privacy={PRIVACY_SETTINGS} />
-        </div>
-      </ProfileFrame>
-    ),
-  },
-  {
-    id: 'notifications',
-    label: 'התראות וצלילים',
-    group: 'פרופיל',
-    note: 'שתי הגדרות נפרדות, שתיהן דולקות כברירת מחדל. בדפדפן ללא תמיכה בהתראות תוצג הערה מתחת למתג.',
-    render: () => (
-      <Framed title="הגדרות" subtitle="התראות וצלילים">
-        <section>
-          <SectionTitle>התראות וצלילים</SectionTitle>
-          <NotificationSettings pushEnabled soundsEnabled />
-        </section>
-      </Framed>
+      <ProfileSettingsScreen
+        displayName={PROFILE.displayName}
+        avatarUrl={PROFILE.avatarUrl}
+        privacy={PRIVACY_SETTINGS}
+      />
     ),
   },
   {
@@ -640,7 +639,9 @@ export const SCREENS: PreviewScreen[] = [
     id: 'player-cards',
     label: 'כרטיסי שחקן',
     group: 'רכיבים',
-    note: 'כולל מצב "אני", מנהל שולחן, מקסימום כניסות ושולחן פרטי.',
+    note:
+      'כולל מצב "אני", מנהל שולחן, מקסימום כניסות ושולחן פרטי, ושמות ארוכים ' +
+      'לצד תג התפקיד — הבדיקה שהשם אינו נחתך.',
     render: () => (
       <Framed title="כרטיסי שחקן" subtitle="גלריית רכיבים">
         <ul className="grid gap-2">
@@ -654,6 +655,29 @@ export const SCREENS: PreviewScreen[] = [
           />
           <PlayerCard player={PLAYERS[3]!} showMoney={false} isMe={false} maxBuyIns={6} />
         </ul>
+
+        <div className="mt-5">
+          <SectionTitle>שמות ארוכים</SectionTitle>
+          <ul className="grid gap-2">
+            <PlayerCard
+              player={LONG_NAME_PLAYERS[0]!}
+              showMoney
+              isMe
+              maxBuyIns={6}
+              actions={<FakeAdminActions />}
+            />
+            <PlayerCard
+              player={LONG_NAME_PLAYERS[0]!}
+              showMoney
+              isMe={false}
+              maxBuyIns={6}
+              actions={<FakeAdminActions />}
+            />
+            <PlayerCard player={LONG_NAME_PLAYERS[0]!} showMoney isMe={false} maxBuyIns={6} />
+            <PlayerCard player={LONG_NAME_PLAYERS[1]!} showMoney isMe={false} maxBuyIns={6} />
+            <PlayerCard player={LONG_NAME_PLAYERS[2]!} showMoney isMe={false} maxBuyIns={6} />
+          </ul>
+        </div>
       </Framed>
     ),
   },

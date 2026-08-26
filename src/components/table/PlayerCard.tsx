@@ -1,5 +1,6 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
 import { Num } from '@/components/ui/Num';
@@ -38,20 +39,21 @@ export function PlayerCard({
         <Avatar name={player.displayName} src={player.avatarUrl} ring={isMe} />
 
         <ProfileTrigger player={player} onOpenProfile={onOpenProfile}>
-          <div className="flex items-center gap-2">
-            <p className="truncate font-bold text-ink">{player.displayName}</p>
-            {player.isGuest ? (
-              <Badge tone="neutral" className="px-2 py-0.5 text-[0.65rem]">
-                אורח
-              </Badge>
+          <p className="font-bold break-words text-ink">
+            {player.displayName}
+            {isMe ? (
+              <span className="ms-1 whitespace-nowrap text-xs font-semibold text-brand-ink">
+                (אני)
+              </span>
             ) : null}
-            {player.isAdmin ? (
-              <Badge tone="brand" className="px-2 py-0.5 text-[0.65rem]">
-                מנהל שולחן
-              </Badge>
-            ) : null}
-            {isMe ? <span className="text-xs text-brand-ink">(אני)</span> : null}
-          </div>
+          </p>
+
+          {player.isGuest || player.isAdmin ? (
+            <div className="mt-1 flex flex-wrap items-center gap-1.5">
+              {player.isGuest ? <RoleBadge tone="neutral">אורח</RoleBadge> : null}
+              {player.isAdmin ? <RoleBadge tone="brand">מנהל שולחן</RoleBadge> : null}
+            </div>
+          ) : null}
 
           {showMoney ? (
             <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-ink-faint">
@@ -83,6 +85,30 @@ export function PlayerCard({
 
       {footer ? <div className="mt-3 border-t border-line-soft pt-3">{footer}</div> : null}
     </li>
+  );
+}
+
+/**
+ * A player's role, on a line of its own beneath their name.
+ *
+ * It used to sit beside the name on a single row, which quietly made the badge
+ * more important than the person: the row could not wrap, so the badge kept its
+ * full width and the name was truncated to fit around it — "אילן פסינ…" next to
+ * a perfectly legible "מנהל שולחן". On a 320px phone with the admin's two
+ * action buttons in the same row there was barely a hundred pixels left to
+ * truncate into.
+ *
+ * Moving the role below the name inverts that. The name now gets the full width
+ * of its column and wraps if it needs to, so a long Hebrew name is shown in
+ * full rather than cut off, and the badges wrap among themselves underneath.
+ * `whitespace-nowrap` keeps a badge on one line — the wrapping happens between
+ * badges, not inside "מנהל שולחן".
+ */
+function RoleBadge({ tone, children }: { tone: 'neutral' | 'brand'; children: ReactNode }) {
+  return (
+    <Badge tone={tone} className="whitespace-nowrap px-2 py-0.5 text-[0.65rem]">
+      {children}
+    </Badge>
   );
 }
 

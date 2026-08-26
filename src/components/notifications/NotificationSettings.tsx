@@ -14,24 +14,45 @@ import { detectPushSupport, disablePush, enablePush, type PushSupport } from '@/
  *
  * They are separate on purpose: a sound is a local nuisance during a game, a
  * push notification is a message to a phone that may be in someone's pocket.
- * Turning one off says nothing about the other, so each saves independently.
+ * Turning one off says nothing about the other.
+ *
+ * They also *save* differently, and that asymmetry is deliberate rather than an
+ * oversight. Sounds are an ordinary preference, so the draft is handed up to
+ * the screen's "שמור שינויים" button with everything else. Notifications are
+ * not: switching them on has to raise the browser's permission prompt and
+ * register a push subscription, and a browser only allows that prompt while the
+ * tap that asked for it is still fresh. Deferring it behind a save button —
+ * after a round trip or two — is exactly the case Safari refuses, so the switch
+ * does its work there and then and reports the saved value back up.
  *
  * Notifications default on, but "on" here only means the app is *willing* to
- * send. A device receives nothing until the browser's own permission prompt is
- * accepted, and that prompt is only raised when the player actively turns the
- * switch on — never on page load, which browsers penalise and players resent.
+ * send. A device receives nothing until the permission prompt is accepted, and
+ * that prompt is only raised when the player actively turns the switch on —
+ * never on page load, which browsers penalise and players resent.
  */
 export function NotificationSettings({
-  pushEnabled: initialPush,
-  soundsEnabled: initialSounds,
+  pushEnabled,
+  onPushChange,
+  soundsEnabled,
+  onSoundsChange,
+  savedSoundsEnabled,
 }: {
+  /** The value already stored for this account. Saved as soon as it changes. */
   pushEnabled: boolean;
+  /** Called once the new value is safely stored. */
+  onPushChange: (next: boolean) => void;
+  /** The draft value on the switch, saved by the screen's save button. */
   soundsEnabled: boolean;
+  onSoundsChange: (next: boolean) => void;
+  /**
+   * The sounds value currently in the database. Both columns are written
+   * together, so switching notifications must re-send the *stored* sounds
+   * value — never the unsaved draft, which would save half the form early.
+   */
+  savedSoundsEnabled: boolean;
 }) {
   const toast = useToast();
   const [pending, startTransition] = useTransition();
-  const [pushEnabled, setPushEnabled] = useState(initialPush);
-  const [soundsEnabled, setSoundsEnabled] = useState(initialSounds);
   const [support, setSupport] = useState<PushSupport | null>(null);
   const [publicKey, setPublicKey] = useState<string | null>(null);
 
@@ -42,17 +63,12 @@ export function NotificationSettings({
     });
   }, []);
 
-  const save = (next: { push?: boolean; sounds?: boolean }) =>
+  const togglePush = (next: boolean) =>
     startTransition(async () => {
-      const payload = {
-        pushNotificationsEnabled: next.push ?? pushEnabled,
-        gameSoundsEnabled: next.sounds ?? soundsEnabled,
-      };
-
       // The browser side runs first when switching push on: if the player
       // dismisses the permission prompt, the switch must not be left claiming
       // it is on. Turning off is the reverse — stop sending, then tidy up.
-      if (next.push === true) {
+      if (next) {
         if (!publicKey) {
           toast.error('התראות אינן זמינות כרגע');
           return;
@@ -64,17 +80,19 @@ export function NotificationSettings({
         }
       }
 
-      const result = await updateNotificationSettingsAction(payload);
+      const result = await updateNotificationSettingsAction({
+        pushNotificationsEnabled: next,
+        gameSoundsEnabled: savedSoundsEnabled,
+      });
       if (!result.ok) {
         toast.error(result.message);
         return;
       }
 
-      if (next.push === false) await disablePush();
+      if (!next) await disablePush();
 
-      setPushEnabled(payload.pushNotificationsEnabled);
-      setSoundsEnabled(payload.gameSoundsEnabled);
-      toast.success('ההגדרות נשמרו');
+      onPushChange(next);
+      toast.success(next ? 'התראות הופעלו' : 'התראות כובו');
     });
 
   const unavailable = support !== null && support !== 'SUPPORTED';
@@ -83,23 +101,23 @@ export function NotificationSettings({
     <div className="grid gap-2">
       <Switch
         checked={pushEnabled}
-        onChange={(value) => save({ push: value })}
+        onChange={togglePush}
         label="התראות על אירועים בשולחן"
         description="הצטרפות, עזיבה, כניסה נוספת, תחילת וסיום משחק"
       />
 
       {unavailable && pushEnabled ? <PushHint support={support} /> : null}
 
+      <p className="text-[0.7rem] text-ink-faint">
+        {pending ? 'שומר…' : 'ההתראות נשמרות מיד — הדפדפן מבקש אישור ברגע ההפעלה.'}
+      </p>
+
       <Switch
         checked={soundsEnabled}
-        onChange={(value) => save({ sounds: value })}
+        onChange={onSoundsChange}
         label="צלילי משחק"
         description="צלילים עדינים כשהאפליקציה פתוחה. אינם תלויים בהתראות."
       />
-
-      <p className="mt-1 text-[0.7rem] text-ink-faint">
-        {pending ? 'שומר…' : 'שתי ההגדרות נפרדות — אפשר לכבות כל אחת בנפרד.'}
-      </p>
     </div>
   );
 }
