@@ -1283,5 +1283,275 @@ begin
   raise notice 'ok    the admin can open a new table after cancelling';
 end $$;
 
+
+-- The isolation checks below reuse the stranger created for the public-profile
+-- section: user 6 has never sat at a table with anybody, so `shares_table_with`
+-- cannot make a profile visible to them. Every other fixture user has shared a
+-- table by this point, which would make those checks vacuous.
+
+\echo '── friendships ──'
+do $$
+declare
+  ilan   uuid := 'a0000000-0000-4000-8000-000000000001';
+  shay   uuid := 'a0000000-0000-4000-8000-000000000002';
+  michal uuid := 'a0000000-0000-4000-8000-000000000003';
+  guest  uuid := 'a0000000-0000-4000-8000-000000000004';
+  -- Shares no table with anyone, so visibility here can only come from
+  -- friendship.
+  outsider uuid := 'a0000000-0000-4000-8000-000000000006';
+  pair   uuid[];
+begin
+  pair := public.friend_pair(ilan, shay);
+  perform expect(pair[1] < pair[2], 'a pair key is always in canonical order');
+  perform expect(public.friend_pair(ilan, shay) = public.friend_pair(shay, ilan),
+                 'the pair key does not depend on who asks');
+
+  -- 1. A sends a request to B.
+  perform test_as(ilan);
+  perform expect(public.send_friend_request(shay) = 'PENDING',
+                 'a request can be sent');
+  perform expect(
+    (select count(*) from public.friendships
+      where user_a = pair[1] and user_b = pair[2] and status = 'PENDING'
+        and requested_by = ilan) = 1,
+    'exactly one row records the request, and who sent it');
+
+  -- 5. Duplicates are refused.
+  perform expect_error(format('select public.send_friend_request(%L)', shay),
+    'REQUEST_ALREADY_SENT', 'the same request cannot be sent twice');
+
+  -- 6. Nobody can friend themselves.
+  perform expect_error(format('select public.send_friend_request(%L)', ilan),
+    'CANNOT_FRIEND_SELF', 'a user cannot friend themselves');
+
+  -- Guests are not accounts and cannot be befriended.
+  perform expect_error(format('select public.send_friend_request(%L)', guest),
+    'GUEST_CANNOT_FRIEND', 'a guest cannot be added as a friend');
+
+  -- 2. B sees the incoming request.
+  perform test_as(shay);
+  set local role authenticated;
+  perform expect(
+    (select count(*) from public.friendships
+      where status = 'PENDING' and requested_by <> shay) = 1,
+    'the recipient sees one incoming request');
+  reset role;
+
+  -- 13. A third party can neither see nor touch the pair. Visibility is
+  --     checked under the real `authenticated` role, which does not bypass RLS.
+  perform test_as(michal);
+  set local role authenticated;
+  perform expect((select count(*) from public.friendships) = 0,
+                 'a non-participant sees no rows at all');
+  reset role;
+  perform expect_error(
+    format('select public.respond_to_friend_request(%L, true)', ilan),
+    'FRIEND_REQUEST_NOT_FOUND', 'a non-participant cannot accept another pair''s request');
+  perform expect_error(format('select public.remove_friend(%L)', ilan),
+    'NOT_FRIENDS', 'a non-participant cannot end another pair''s friendship');
+
+  -- The sender cannot accept their own request.
+  perform test_as(ilan);
+  perform expect_error(
+    format('select public.respond_to_friend_request(%L, true)', shay),
+    'NOT_AUTHORIZED', 'the sender cannot accept their own request');
+
+  -- 3. B accepts.
+  perform test_as(shay);
+  perform expect(public.respond_to_friend_request(ilan, true) = 'ACCEPTED',
+                 'the recipient can accept');
+
+  -- 4. Both sides now see the friendship, from either direction.
+  perform expect(public.is_friend_of(ilan), 'the accepter sees the friendship');
+  perform test_as(ilan);
+  perform expect(public.is_friend_of(shay), 'the sender sees the friendship');
+  perform expect(
+    (select count(*) from public.friendships
+      where status = 'ACCEPTED' and (user_a = ilan or user_b = ilan)) = 1,
+    'one accepted row serves both users');
+
+  -- A second request on top of an accepted friendship is refused, either way.
+  perform expect_error(format('select public.send_friend_request(%L)', shay),
+    'ALREADY_FRIENDS', 'no request can be made to an existing friend');
+  perform test_as(shay);
+  perform expect_error(format('select public.send_friend_request(%L)', ilan),
+    'ALREADY_FRIENDS', 'nor from the other side');
+
+  -- Friends may now read each other's profile row, which the list needs.
+  -- Again under `authenticated`, or the policy would not be consulted at all.
+  perform test_as(ilan);
+  set local role authenticated;
+  perform expect((select count(*) from public.profiles where id = shay) = 1,
+                 'a friend''s name and avatar become readable');
+  reset role;
+  perform test_as(outsider);
+  set local role authenticated;
+  perform expect((select count(*) from public.profiles where id = shay) = 0,
+                 'a stranger''s profile stays hidden');
+  reset role;
+
+  -- 9. Removal, from the side that did not send the original request.
+  perform test_as(shay);
+  perform public.remove_friend(ilan);
+  perform expect((select count(*) from public.friendships
+                   where user_a = pair[1] and user_b = pair[2]) = 0,
+                 'removing a friend deletes the row');
+  perform expect(not public.is_friend_of(ilan), 'and the friendship is gone for both');
+  perform test_as(ilan);
+  perform expect(not public.is_friend_of(shay), 'from either direction');
+  perform expect_error(format('select public.remove_friend(%L)', shay),
+    'NOT_FRIENDS', 'removing a friendship that does not exist is refused');
+
+  -- 10. Remove then re-add behaves exactly like a first-time request.
+  perform expect(public.send_friend_request(shay) = 'PENDING',
+                 'a removed friend can be added again');
+  perform test_as(shay);
+  perform expect(public.respond_to_friend_request(ilan, true) = 'ACCEPTED',
+                 'and accepted again');
+  perform expect(public.is_friend_of(ilan), 'the friendship is restored');
+  perform public.remove_friend(ilan);
+
+  -- 7. Declining.
+  perform test_as(ilan);
+  perform public.send_friend_request(shay);
+  perform test_as(shay);
+  perform expect(public.respond_to_friend_request(ilan, false) = 'DECLINED',
+                 'the recipient can decline');
+  perform expect(not public.is_friend_of(ilan), 'declining creates no friendship');
+  perform expect(
+    (select count(*) from public.friendships
+      where user_a = pair[1] and user_b = pair[2] and status = 'PENDING') = 0,
+    'a declined request no longer shows as pending');
+  perform expect_error(
+    format('select public.respond_to_friend_request(%L, true)', ilan),
+    'FRIEND_REQUEST_NOT_FOUND', 'a declined request cannot then be accepted');
+
+  -- Asking again after a decline is allowed, and the new asker owns it.
+  perform expect(public.send_friend_request(ilan) = 'PENDING',
+                 'the other side may ask after a decline');
+  perform expect(
+    (select requested_by from public.friendships
+      where user_a = pair[1] and user_b = pair[2]) = shay,
+    'and the new request belongs to whoever sent it');
+
+  -- 8. The sender cancels.
+  perform expect_error(format('select public.cancel_friend_request(%L)', michal),
+    'FRIEND_REQUEST_NOT_FOUND', 'there is nothing to cancel for a stranger');
+  perform test_as(ilan);
+  perform expect_error(format('select public.cancel_friend_request(%L)', shay),
+    'FRIEND_REQUEST_NOT_FOUND', 'only the sender may cancel their request');
+  perform test_as(shay);
+  perform public.cancel_friend_request(ilan);
+  perform expect((select count(*) from public.friendships
+                   where user_a = pair[1] and user_b = pair[2]) = 0,
+                 'cancelling removes the row entirely');
+
+  -- Asking somebody who has already asked you accepts, rather than deadlocking.
+  perform test_as(ilan);
+  perform public.send_friend_request(shay);
+  perform test_as(shay);
+  perform expect(public.send_friend_request(ilan) = 'ACCEPTED',
+                 'asking back accepts the request that was already waiting');
+  perform expect((select count(*) from public.friendships
+                   where user_a = pair[1] and user_b = pair[2]) = 1,
+                 'and still leaves exactly one row');
+  perform public.remove_friend(ilan);
+end $$;
+
+\echo '── friend search exposes only what it must ──'
+do $$
+declare
+  ilan  uuid := 'a0000000-0000-4000-8000-000000000001';
+  shay  uuid := 'a0000000-0000-4000-8000-000000000002';
+  guest uuid := 'a0000000-0000-4000-8000-000000000004';
+  hits  jsonb;
+  keys  text[];
+begin
+  perform test_as(ilan);
+
+  -- 11. By name, and by pasted id.
+  hits := public.search_users('שי');
+  perform expect(jsonb_array_length(hits) >= 1, 'a user can be found by display name');
+  perform expect(exists (
+    select 1 from jsonb_array_elements(hits) h where h ->> 'id' = shay::text),
+    'the right user comes back');
+
+  hits := public.search_users(shay::text);
+  perform expect(jsonb_array_length(hits) = 1, 'a user can be found by their id');
+
+  hits := public.search_users('א');
+  perform expect(jsonb_array_length(hits) = 0,
+                 'a one-character query is refused rather than listing everyone');
+
+  hits := public.search_users('דניאל');
+  perform expect(not exists (
+    select 1 from jsonb_array_elements(hits) h where h ->> 'id' = guest::text),
+    'guests never appear in search results');
+
+  hits := public.search_users('אילן');
+  perform expect(not exists (
+    select 1 from jsonb_array_elements(hits) h where h ->> 'id' = ilan::text),
+    'a search never returns the person doing it');
+
+  -- 12. Only the four public fields plus the relationship.
+  hits := public.search_users('שי');
+  select array_agg(distinct k) into keys
+    from jsonb_array_elements(hits) h, jsonb_object_keys(h) k;
+  perform expect(
+    keys <@ array['id', 'display_name', 'avatar_url', 'status', 'requested_by'],
+    'search returns nothing beyond name, avatar and the relationship');
+  perform expect(
+    not (keys && array['email', 'is_guest', 'created_at', 'updated_at',
+                       'share_stats_with_table_members', 'share_detailed_history',
+                       'show_on_leaderboard', 'push_notifications_enabled']),
+    'no private or auth field is exposed by search');
+
+  -- The relationship travels with the result, so a button can be labelled
+  -- correctly without a second query.
+  perform public.send_friend_request(shay);
+  hits := public.search_users('שי');
+  perform expect(exists (
+    select 1 from jsonb_array_elements(hits) h
+     where h ->> 'id' = shay::text and h ->> 'status' = 'PENDING'
+       and h ->> 'requested_by' = ilan::text),
+    'a result carries the current relationship and its direction');
+  perform public.cancel_friend_request(shay);
+end $$;
+
+\echo '── clients cannot write friendships directly ──'
+do $$
+declare
+  ilan uuid := 'a0000000-0000-4000-8000-000000000001';
+  shay uuid := 'a0000000-0000-4000-8000-000000000002';
+  pair uuid[] := public.friend_pair('a0000000-0000-4000-8000-000000000001',
+                                    'a0000000-0000-4000-8000-000000000002');
+begin
+  perform test_as(ilan);
+  perform public.send_friend_request(shay);
+
+  -- The whole authorization model rests on this: no direct write is granted,
+  -- so a forged PostgREST call has nothing to aim at.
+  set local role authenticated;
+  perform expect_error(
+    format('insert into public.friendships (user_a, user_b, status, requested_by)
+            values (%L, %L, ''ACCEPTED'', %L)', pair[1], pair[2], ilan),
+    'permission denied for table friendships',
+    'a client cannot insert a friendship');
+  perform expect_error(
+    'update public.friendships set status = ''ACCEPTED''',
+    'permission denied for table friendships',
+    'a client cannot accept a request by writing the row');
+  perform expect_error(
+    'delete from public.friendships',
+    'permission denied for table friendships',
+    'a client cannot delete a friendship row');
+  reset role;
+
+  perform expect(
+    (select status from public.friendships
+      where user_a = pair[1] and user_b = pair[2])::text = 'PENDING',
+    'the request is still exactly as the function left it');
+  perform public.cancel_friend_request(shay);
+end $$;
 \echo ''
 \echo 'All database checks passed.'

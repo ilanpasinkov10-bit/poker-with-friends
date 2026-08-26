@@ -27,6 +27,7 @@ import { CreateTableForm } from '@/components/table/CreateTableForm';
 import { LeaderboardView } from '@/components/table/LeaderboardView';
 import { PlayerCard } from '@/components/table/PlayerCard';
 import { TablesBrowser } from '@/components/tables/TablesBrowser';
+import { FriendsScreen } from '@/components/friends/FriendsScreen';
 import { TableScreen } from '@/components/table/TableScreen';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
@@ -41,7 +42,10 @@ import {
   HISTORY,
   JOIN_PREVIEW,
   LEADERBOARD,
+  FRIENDS,
+  INCOMING_REQUESTS,
   LEFT_PLAYERS,
+  OUTGOING_REQUESTS,
   MY_TABLES,
   LONG_NAME_PLAYERS,
   SEATED_PLAYERS,
@@ -511,6 +515,28 @@ export const SCREENS: PreviewScreen[] = [
         />
       </Framed>
     ),
+  },
+  {
+    id: 'friends',
+    label: 'חברים',
+    group: 'פרופיל שחקן',
+    note:
+      'שלוש לשוניות: החברים שלי, בקשות חברות וחיפוש. שורה אחת משותפת לכולן, ' +
+      'שנשברת לשתי שורות כשאין מקום לשם ולכפתורים באותה שורה.',
+    render: () => (
+      <FriendsScreen
+        friends={FRIENDS}
+        incoming={INCOMING_REQUESTS}
+        outgoing={OUTGOING_REQUESTS}
+      />
+    ),
+  },
+  {
+    id: 'friends-empty',
+    label: 'חברים — ריק',
+    group: 'פרופיל שחקן',
+    note: 'המצב ההתחלתי, לפני שנוספו חברים או התקבלו בקשות.',
+    render: () => <FriendsScreen friends={[]} incoming={[]} outgoing={[]} />,
   },
   {
     id: 'my-tables',

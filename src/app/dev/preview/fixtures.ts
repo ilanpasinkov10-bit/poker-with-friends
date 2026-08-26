@@ -17,6 +17,7 @@ import { computeSettlement } from '@/lib/domain/settlement';
 import type { CompletedGameRecord } from '@/lib/domain/stats';
 import type { PendingRequestView, PlayerView, TableViewModel } from '@/lib/data/table';
 import type { LeaderboardRow } from '@/lib/data/profile';
+import type { FriendRequestSummary, FriendSummary } from '@/lib/domain/friends';
 import type { TableListItem } from '@/components/tables/TablesBrowser';
 import type {
   GameResultRow,
@@ -475,6 +476,31 @@ export const MY_TABLES: TableListItem[] = TABLE_LIST_SPECS.map((spec, index) => 
   role: spec.role,
   playerCount: 3 + (index % 4),
 }));
+
+/**
+ * Friends, requests and search results — with a long Hebrew name and a Latin
+ * one, because the row has to wrap on a 320px phone rather than truncate.
+ */
+export const FRIENDS: FriendSummary[] = [
+  { userId: 'friend-1', displayName: 'שי', avatarUrl: AVATARS.shay },
+  { userId: 'friend-2', displayName: 'מיכל כהן-ברששת', avatarUrl: AVATARS.michal },
+  { userId: 'friend-3', displayName: 'Daniel', avatarUrl: null },
+  { userId: 'friend-4', displayName: 'אבישי רוזנצוויג', avatarUrl: null },
+];
+
+export const INCOMING_REQUESTS: FriendRequestSummary[] = [
+  {
+    userId: 'req-1',
+    displayName: 'ירדן בן-אברהם הכהן',
+    avatarUrl: null,
+    requestedAt: '2026-08-26T09:00:00.000Z',
+  },
+  { userId: 'req-2', displayName: 'רועי', avatarUrl: null, requestedAt: '2026-08-25T18:30:00.000Z' },
+];
+
+export const OUTGOING_REQUESTS: FriendRequestSummary[] = [
+  { userId: 'out-1', displayName: 'נועם', avatarUrl: null, requestedAt: '2026-08-24T20:00:00.000Z' },
+];
 
 export const PRIVACY_SETTINGS: ProfilePrivacyRow = {
   profile_id: ADMIN_USER_ID,
