@@ -20,8 +20,12 @@ export const dynamic = 'force-dynamic';
 
 export default async function ProfileLayout({ children }: { children: React.ReactNode }) {
   const user = await requireRegisteredUser('/profile');
-  const { games } = await loadPlayerHistory(user.id);
-  const pendingRequests = await countIncomingRequests(user.id);
+  // Independent of each other, so they go together rather than one after the
+  // other — the second was waiting on the first for no reason.
+  const [{ games }, pendingRequests] = await Promise.all([
+    loadPlayerHistory(user.id),
+    countIncomingRequests(user.id),
+  ]);
   const stats = computeLifetimeStats(games);
   const groups = summariseByGroup(games);
 

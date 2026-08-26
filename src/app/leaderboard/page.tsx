@@ -2,7 +2,7 @@ import { BottomNav } from '@/components/layout/BottomNav';
 import { PageShell } from '@/components/layout/PageShell';
 import { LeaderboardList } from '@/components/leaderboard/LeaderboardList';
 import { PeriodTabs } from '@/components/leaderboard/PeriodTabs';
-import { requireAnyUser } from '@/lib/auth';
+import { requireUserId } from '@/lib/auth';
 import { loadGlobalLeaderboard } from '@/lib/data/leaderboard';
 import { isLeaderboardPeriod } from '@/lib/domain/leaderboard';
 
@@ -17,8 +17,13 @@ export default async function LeaderboardPage({
   const params = await searchParams;
   const period = isLeaderboardPeriod(params.period) ? params.period : 'ALL';
 
-  await requireAnyUser('/leaderboard');
-  const rows = await loadGlobalLeaderboard(period);
+  // The ranking is the same for everyone, so it does not need to wait for the
+  // session check. The check still runs, and still redirects — it simply runs
+  // alongside rather than in front. RLS applies to the query either way.
+  const [, rows] = await Promise.all([
+    requireUserId('/leaderboard'),
+    loadGlobalLeaderboard(period),
+  ]);
 
   return (
     <>
