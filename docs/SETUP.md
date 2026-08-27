@@ -77,8 +77,8 @@ Do **not** add `SUPABASE_SECRET_KEY`.
 
 ## 4. Apply the database migrations
 
-Six migrations create the schema, the privileged functions, every RLS policy,
-the realtime publication, and the avatar storage bucket. Apply them in order.
+These create the schema, the privileged functions, every RLS policy, the
+realtime publication, and the avatar storage bucket. Apply them in order.
 
 ### Option A — Supabase CLI (recommended)
 
@@ -107,6 +107,10 @@ waiting for success before the next:
 8. `supabase/migrations/0008_delete_profiles_leaderboard.sql`
 9. `supabase/migrations/0009_leave_active_table.sql`
 10. `supabase/migrations/0010_repair_leave_table.sql`
+11. `supabase/migrations/0011_notifications.sql`
+12. `supabase/migrations/0012_cancel_active_game.sql`
+13. `supabase/migrations/0013_friends.sql`
+14. `supabase/migrations/0014_sync_guest_flag.sql`
 
 Order matters: later files reference objects created by earlier ones.
 
@@ -124,6 +128,10 @@ Order matters: later files reference objects created by earlier ones.
 | `0008` | Table deletion, public profiles, the global leaderboard, and the opt-in `show_on_leaderboard` privacy switch (defaults to off) |
 | `0009` | Leaving a game in progress: `table_players.left_at` and `leave_table` |
 | `0010` | Self-contained repair of the leave flow, granular error codes, and a PostgREST schema reload |
+| `0011` | Push notification subscriptions, and the sound/notification privacy switches |
+| `0012` | Cancelling a game that has already started |
+| `0013` | Friendships: one row per pair, the request functions, and user search |
+| `0014` | Keeps `profiles.is_guest` in step with `auth.users.is_anonymous`, and repairs accounts where it had already drifted |
 
 Realtime, Storage and RLS need no dashboard clicks — they are configured by
 `0004` and `0005`.

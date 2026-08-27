@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { AppError, GENERIC_ERROR, toHebrewError } from '@/lib/errors';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+const MIGRATIONS = join(import.meta.dirname, '..', 'supabase', 'migrations');
 
 describe('Hebrew error mapping', () => {
   it('maps database error codes to natural Hebrew', () => {
@@ -48,5 +52,27 @@ describe('Hebrew error mapping', () => {
   it('carries an AppError through unchanged', () => {
     const mapped = toHebrewError(new AppError('CHIP_MISMATCH'));
     expect(mapped.code).toBe('CHIP_MISMATCH');
+  });
+});
+
+describe('every refusal the database can raise has something to say', () => {
+  it('has Hebrew for each code raised by a migration', () => {
+    // A code with no entry here reaches the user as the fallback message,
+    // which tells them nothing about what went wrong. This bit them once:
+    // send_friend_request raised the same code for the sender and the target,
+    // so an account that could search but not add anybody was told to register
+    // an account it already had.
+    const sql = readdirSync(MIGRATIONS)
+      .filter((name) => name.endsWith('.sql'))
+      .map((name) => readFileSync(join(MIGRATIONS, name), 'utf8'))
+      .join('\n');
+
+    const codes = [...sql.matchAll(/raise exception '([A-Z][A-Z_]+)'/g)].map((m) => m[1]!);
+    expect(codes.length).toBeGreaterThan(30);
+
+    const unmapped = [...new Set(codes)].filter(
+      (code) => toHebrewError(new Error(code)).message === GENERIC_ERROR,
+    );
+    expect(unmapped).toEqual([]);
   });
 });

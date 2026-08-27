@@ -1324,9 +1324,10 @@ begin
   perform expect_error(format('select public.send_friend_request(%L)', ilan),
     'CANNOT_FRIEND_SELF', 'a user cannot friend themselves');
 
-  -- Guests are not accounts and cannot be befriended.
+  -- Guests are not accounts and cannot be befriended. The target's refusal
+  -- has its own code so it cannot be confused with the sender's.
   perform expect_error(format('select public.send_friend_request(%L)', guest),
-    'GUEST_CANNOT_FRIEND', 'a guest cannot be added as a friend');
+    'TARGET_IS_GUEST', 'a guest cannot be added as a friend');
 
   -- 2. B sees the incoming request.
   perform test_as(shay);
@@ -1553,6 +1554,74 @@ begin
     'the request is still exactly as the function left it');
   perform public.cancel_friend_request(shay);
 end $$;
+\echo ''
+\echo '── a guest who becomes a real account ──'
+do $$
+declare
+  -- Somebody who joined a table by code first and signed up afterwards, and
+  -- somebody who signed up straight away. Both end up registered.
+  upgraded uuid := 'ea000000-0000-4000-8000-0000000000e1';
+  native   uuid := 'ea000000-0000-4000-8000-0000000000e2';
+begin
+  insert into auth.users (id, email, raw_user_meta_data, is_anonymous) values
+    (upgraded, null, '{"display_name":"עלה מאורח"}', true),
+    (native, 'native@example.com', '{"display_name":"נרשם ישר"}', false);
+
+  perform expect(
+    (select is_guest from public.profiles where id = upgraded),
+    'a guest session starts out marked as a guest');
+
+  -- What supabase.auth.updateUser({ email, password }) does to the row: the
+  -- same auth user, no longer anonymous. This is the moment the copy in
+  -- profiles used to stop being true.
+  update auth.users set email = 'upgraded@example.com', is_anonymous = false
+   where id = upgraded;
+
+  perform expect(
+    not (select is_guest from public.profiles where id = upgraded),
+    'upgrading the account clears is_guest without anyone asking it to');
+
+  -- The bug this exists to prevent: the sender, not the target, was the one
+  -- being refused, and the account could search but never add anybody.
+  perform test_as(upgraded);
+  perform expect(
+    public.send_friend_request(native) = 'PENDING',
+    'an upgraded account can send a friend request to a registered account');
+  perform public.cancel_friend_request(native);
+
+  -- The other direction, and the symptom nobody would have thought to try:
+  -- the upgraded account was invisible to everyone else's search.
+  perform test_as(native);
+  perform expect(
+    jsonb_array_length(public.search_users('עלה מאורח')) = 1,
+    'an upgraded account is findable in search again');
+  perform expect(
+    public.send_friend_request(upgraded) = 'PENDING',
+    'and a registered account can send a request to an upgraded one');
+  perform public.cancel_friend_request(upgraded);
+
+  -- Going the other way is repaired too: auth.users is the account, profiles
+  -- only describes it.
+  update auth.users set is_anonymous = true where id = upgraded;
+  perform expect(
+    (select is_guest from public.profiles where id = upgraded),
+    'and the flag follows an account back to anonymous');
+  update auth.users set is_anonymous = false where id = upgraded;
+end $$;
+
+do $$
+begin
+  -- Nothing anywhere may disagree with auth.users, including every fixture
+  -- this file has created along the way.
+  perform expect(
+    not exists (
+      select 1 from public.profiles p
+        join auth.users u on u.id = p.id
+       where p.is_guest is distinct from coalesce(u.is_anonymous, false)
+    ),
+    'no profile in the database disagrees with its auth user');
+end $$;
+
 \echo ''
 \echo '── the foreign keys the app embeds through ──'
 do $$
