@@ -112,24 +112,35 @@ export async function loadTableView(
 ): Promise<TableViewModel> {
   const supabase = await createClient();
 
-  const { data: table } = await supabase
-    .from('poker_tables')
-    .select('*')
-    .eq('id', tableId)
-    .maybeSingle();
-  if (!table) notFound();
-
+  // Everything here is keyed on the table id, which came in with the URL, so
+  // nothing needs to wait for anything else to come back first. It used to:
+  // the table row was fetched, then the seats and the ledger, and then — once
+  // the seats named them — the players' profiles. Three network legs in series
+  // for a screen whose every query already knew what to ask for.
+  //
+  // The two dependent parts are folded into the requests that carry them. The
+  // finished game's results and settlements ride along with the table (for a
+  // game still in progress those rows do not exist yet, so asking costs
+  // nothing), and each player's avatar rides along with their seat.
   const [
+    tableRes,
     playersRes,
     totalsRes,
     requestsRes,
     countsRes,
     ledgerRes,
-    resultsRes,
-    settlementsRes,
     soundsRes,
   ] = await Promise.all([
-      supabase.from('table_players').select('*').eq('table_id', tableId).order('joined_at'),
+      supabase
+        .from('poker_tables')
+        .select('*, game_results(*), settlements(*)')
+        .eq('id', tableId)
+        .maybeSingle(),
+      supabase
+        .from('table_players')
+        .select('*, profiles(id, avatar_url, is_guest)')
+        .eq('table_id', tableId)
+        .order('joined_at'),
       supabase.from('table_player_totals').select('*').eq('table_id', tableId),
       supabase
         .from('rebuy_requests')
@@ -143,12 +154,6 @@ export async function loadTableView(
         .select('*')
         .eq('table_id', tableId)
         .order('created_at', { ascending: true }),
-      table.status === 'COMPLETED'
-        ? supabase.from('game_results').select('*').eq('table_id', tableId)
-        : Promise.resolve({ data: [] as GameResultRow[] }),
-      table.status === 'COMPLETED'
-        ? supabase.from('settlements').select('*').eq('table_id', tableId)
-        : Promise.resolve({ data: [] as SettlementRow[] }),
       // Own row only — RLS allows nothing else, which is all that is needed.
       supabase
         .from('profile_privacy_settings')
@@ -157,11 +162,22 @@ export async function loadTableView(
         .maybeSingle(),
   ]);
 
-  const playerRows = (playersRes.data ?? []) as TablePlayerRow[];
-  const userIds = [...new Set(playerRows.map((p) => p.user_id).filter((id): id is string => !!id))];
-  const { data: profileRows } = userIds.length
-    ? await supabase.from('profiles').select('id, avatar_url, is_guest').in('id', userIds)
-    : { data: [] };
+  const withChildren = tableRes.data as
+    | (PokerTableRow & { game_results: GameResultRow[]; settlements: SettlementRow[] })
+    | null;
+  if (!withChildren) notFound();
+  const { game_results: gameResults, settlements, ...table } = withChildren;
+  // A game still running has no frozen results; only a finished one does.
+  const resultsRes = { data: table.status === 'COMPLETED' ? gameResults : [] };
+  const settlementsRes = { data: table.status === 'COMPLETED' ? settlements : [] };
+
+  const seatRows = (playersRes.data ?? []) as (TablePlayerRow & {
+    profiles: { id: string; avatar_url: string | null; is_guest: boolean } | null;
+  })[];
+  const playerRows: TablePlayerRow[] = seatRows;
+  const profileRows = seatRows
+    .map((row) => row.profiles)
+    .filter((profile) => profile !== null);
 
   const avatarByUser = new Map((profileRows ?? []).map((p) => [p.id, p.avatar_url]));
   const guestByUser = new Map((profileRows ?? []).map((p) => [p.id, p.is_guest]));

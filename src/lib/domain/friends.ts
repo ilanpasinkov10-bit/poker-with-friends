@@ -122,3 +122,72 @@ export function sortRequests<T extends FriendRequestSummary>(requests: readonly 
 export function sortFriends<T extends FriendSummary>(friends: readonly T[]): T[] {
   return [...friends].sort((a, b) => a.displayName.localeCompare(b.displayName, 'he'));
 }
+
+/** A friendship row with both sides' profiles attached, as the query returns it. */
+export interface FriendshipWithPeople extends FriendshipRow {
+  person_a: Person | null;
+  person_b: Person | null;
+}
+
+export interface Person {
+  id: string;
+  display_name: string;
+  avatar_url: string | null;
+}
+
+const NO_FRIENDS: FriendsOverview = { friends: [], incoming: [], outgoing: [] };
+
+export interface FriendsOverview {
+  friends: FriendSummary[];
+  /** Requests waiting for the caller to answer. */
+  incoming: FriendRequestSummary[];
+  /** Requests the caller has sent and can still withdraw. */
+  outgoing: FriendRequestSummary[];
+}
+
+/**
+ * Sorts the caller's rows into friends, requests received and requests sent.
+ *
+ * Both profiles arrive attached to the row, one per side of the pair, so which
+ * of them is "the other person" is decided here rather than by a lookup — and
+ * it depends on the viewer, which is exactly why it cannot be decided by the
+ * query.
+ */
+export function summariseFriendships(
+  rows: readonly FriendshipWithPeople[],
+  userId: string,
+): FriendsOverview {
+  if (rows.length === 0) return NO_FRIENDS;
+
+  const friends: FriendSummary[] = [];
+  const incoming: FriendRequestSummary[] = [];
+  const outgoing: FriendRequestSummary[] = [];
+
+  for (const row of rows) {
+    const id = otherUserId(row, userId);
+    const profile = row.user_a === id ? row.person_a : row.person_b;
+    // A profile that cannot be read is a row whose other side has been
+    // deleted mid-flight. Skipping it is better than rendering a blank card.
+    if (!profile) continue;
+
+    const summary: FriendSummary = {
+      userId: id,
+      displayName: profile.display_name,
+      avatarUrl: profile.avatar_url,
+    };
+
+    if (row.status === 'ACCEPTED') {
+      friends.push(summary);
+    } else if (row.requested_by === userId) {
+      outgoing.push({ ...summary, requestedAt: row.updated_at });
+    } else {
+      incoming.push({ ...summary, requestedAt: row.updated_at });
+    }
+  }
+
+  // Deliberately unordered. A list's order is a property of how it is read,
+  // not of how it was stored, so each component sorts what it renders — which
+  // also means a component cannot be handed an unsorted list by a caller that
+  // forgot.
+  return { friends, incoming, outgoing };
+}

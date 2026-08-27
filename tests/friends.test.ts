@@ -10,6 +10,8 @@ import {
   relationshipTone,
   sortFriends,
   sortRequests,
+  summariseFriendships,
+  type FriendshipWithPeople,
   type Relationship,
 } from '@/lib/domain/friends';
 import type { FriendshipRow } from '@/types/database';
@@ -146,5 +148,51 @@ describe('ordering', () => {
     const before = [...input];
     sortRequests(input);
     expect(input).toEqual(before);
+  });
+});
+
+describe('sorting a viewer’s rows into friends and requests', () => {
+  const dana = { id: THEM, display_name: 'דנה', avatar_url: null };
+  const me = { id: ME, display_name: 'אילן', avatar_url: null };
+  const row = (over: Partial<FriendshipWithPeople> = {}): FriendshipWithPeople => ({
+    user_a: ME,
+    user_b: THEM,
+    status: 'ACCEPTED',
+    requested_by: ME,
+    created_at: '2026-02-01T00:00:00Z',
+    updated_at: '2026-02-01T00:00:00Z',
+    person_a: me,
+    person_b: dana,
+    ...over,
+  });
+
+  it('takes the other person, whichever side of the pair they are on', () => {
+    // Rows are stored with the ids in canonical order, so the viewer is
+    // sometimes user_a and sometimes user_b. Picking the wrong side would show
+    // the viewer their own name in their own friends list.
+    const asA = summariseFriendships([row()], ME);
+    expect(asA.friends).toEqual([{ userId: THEM, displayName: 'דנה', avatarUrl: null }]);
+
+    const asB = summariseFriendships([row()], THEM);
+    expect(asB.friends).toEqual([{ userId: ME, displayName: 'אילן', avatarUrl: null }]);
+  });
+
+  it('separates a request sent from a request received', () => {
+    const pending = row({ status: 'PENDING', requested_by: ME });
+    expect(summariseFriendships([pending], ME).outgoing).toHaveLength(1);
+    expect(summariseFriendships([pending], ME).incoming).toHaveLength(0);
+    expect(summariseFriendships([pending], THEM).incoming).toHaveLength(1);
+    expect(summariseFriendships([pending], THEM).outgoing).toHaveLength(0);
+  });
+
+  it('skips a row whose other side cannot be read', () => {
+    // RLS hides a profile, or the account was deleted mid-flight. Better a
+    // missing card than a blank one.
+    const orphan = row({ person_b: null });
+    expect(summariseFriendships([orphan], ME).friends).toEqual([]);
+  });
+
+  it('has nothing to say about an empty list', () => {
+    expect(summariseFriendships([], ME)).toEqual({ friends: [], incoming: [], outgoing: [] });
   });
 });

@@ -1554,4 +1554,36 @@ begin
   perform public.cancel_friend_request(shay);
 end $$;
 \echo ''
+\echo '── the foreign keys the app embeds through ──'
+do $$
+declare
+  -- Several screens now ask for a row and the rows hanging off it in one
+  -- request instead of two in series. PostgREST resolves those embeds by
+  -- *constraint name*, so a renamed or missing key does not raise here — it
+  -- makes a page come back quietly empty. Pinning the names turns that into a
+  -- failing test instead of a blank friends list.
+  fk text;
+  wanted text[] := array[
+    'table_players_table_id_fkey',
+    'table_players_user_id_fkey',
+    'game_results_table_id_fkey',
+    'settlements_table_id_fkey',
+    'poker_tables_group_id_fkey',
+    'poker_tables_owner_id_fkey',
+    'friendships_user_a_fkey',
+    'friendships_user_b_fkey'
+  ];
+begin
+  foreach fk in array wanted loop
+    perform expect(
+      exists (
+        select 1 from pg_constraint
+        where conname = fk and contype = 'f'
+          and connamespace = 'public'::regnamespace
+      ),
+      format('%s exists (src/lib/data embeds through it)', fk));
+  end loop;
+end $$;
+
+\echo ''
 \echo 'All database checks passed.'

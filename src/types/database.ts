@@ -217,12 +217,39 @@ export type FinalRowResult = {
   profit_loss_agorot: number;
 }
 
-type ReadOnly<T> = { Row: T; Insert: never; Update: never; Relationships: [] };
-type Writable<T, I = Partial<T>, U = Partial<T>> = {
+/**
+ * Foreign keys, spelled the way PostgREST names them.
+ *
+ * These are not decoration: they are what lets a query ask for a row and the
+ * rows hanging off it in *one* round trip (`select('*,table_players(status)')`)
+ * instead of two queries in series. The names are the constraint names Postgres
+ * generates for the inline `references` clauses in supabase/migrations —
+ * `<table>_<column>_fkey` — and PostgREST resolves embeds by those names.
+ */
+type Rel<
+  Name extends string,
+  Column extends string,
+  Referenced extends string,
+  OneToOne extends boolean = false,
+> = {
+  foreignKeyName: Name;
+  columns: [Column];
+  isOneToOne: OneToOne;
+  referencedRelation: Referenced;
+  referencedColumns: ['id'];
+};
+
+type ReadOnly<T, R extends readonly unknown[] = []> = {
+  Row: T;
+  Insert: never;
+  Update: never;
+  Relationships: R;
+};
+type Writable<T, I = Partial<T>, U = Partial<T>, R extends readonly unknown[] = []> = {
   Row: T;
   Insert: I;
   Update: U;
-  Relationships: [];
+  Relationships: R;
 };
 
 export type Database = {
@@ -232,16 +259,42 @@ export type Database = {
       profile_privacy_settings: Writable<ProfilePrivacyRow>;
       push_subscriptions: Writable<PushSubscriptionRow>;
       poker_groups: ReadOnly<PokerGroupRow>;
-      poker_tables: Writable<PokerTableRow>;
-      table_players: ReadOnly<TablePlayerRow>;
+      poker_tables: Writable<
+        PokerTableRow,
+        Partial<PokerTableRow>,
+        Partial<PokerTableRow>,
+        [
+          Rel<'poker_tables_group_id_fkey', 'group_id', 'poker_groups'>,
+          Rel<'poker_tables_owner_id_fkey', 'owner_id', 'profiles'>,
+        ]
+      >;
+      table_players: ReadOnly<
+        TablePlayerRow,
+        [
+          Rel<'table_players_table_id_fkey', 'table_id', 'poker_tables'>,
+          Rel<'table_players_user_id_fkey', 'user_id', 'profiles', true>,
+        ]
+      >;
       rebuy_requests: ReadOnly<RebuyRequestRow>;
       buyin_transactions: ReadOnly<BuyinTransactionRow>;
       chip_count_submissions: ReadOnly<ChipCountRow>;
-      game_results: ReadOnly<GameResultRow>;
-      settlements: ReadOnly<SettlementRow>;
+      game_results: ReadOnly<
+        GameResultRow,
+        [Rel<'game_results_table_id_fkey', 'table_id', 'poker_tables'>]
+      >;
+      settlements: ReadOnly<
+        SettlementRow,
+        [Rel<'settlements_table_id_fkey', 'table_id', 'poker_tables'>]
+      >;
       game_corrections: ReadOnly<GameCorrectionRow>;
       saved_players: Writable<SavedPlayerRow>;
-      friendships: ReadOnly<FriendshipRow>;
+      friendships: ReadOnly<
+        FriendshipRow,
+        [
+          Rel<'friendships_user_a_fkey', 'user_a', 'profiles', true>,
+          Rel<'friendships_user_b_fkey', 'user_b', 'profiles', true>,
+        ]
+      >;
     };
     Views: {
       table_player_totals: ReadOnly<TablePlayerTotalsRow>;

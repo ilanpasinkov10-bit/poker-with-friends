@@ -37,38 +37,64 @@ export interface SessionIdentity {
 }
 
 /**
- * The authoritative session check. `getUser` validates against the auth
- * service rather than trusting the cookie, which is what makes it safe to
- * authorise on — and why it is worth calling exactly once per request.
+ * The authoritative session check.
+ *
+ * `getClaims` verifies the access token's *signature* before believing a word
+ * of it, which is the same guarantee `getUser` gives — the difference is where
+ * the verification happens. On a project using asymmetric JWT signing keys
+ * (ECC/RSA) the public key comes from the auth service's JWKS endpoint, is
+ * cached process-wide for the key's lifetime, and the check itself is a local
+ * WebCrypto verify: no round trip. `getUser` instead posts the token to the
+ * auth service and waits, on every request, for an answer it already had the
+ * means to compute.
+ *
+ * That wait was the single most expensive thing in this app. It sat in front
+ * of every route — a page cannot ask for its own data until it knows who is
+ * asking — so it was not one round trip out of three, it was the round trip
+ * the other two queued behind. Removing it takes a whole network leg off every
+ * navigation and lets what remains start immediately.
+ *
+ * On a project still using a shared (HS256) secret there is no public key to
+ * verify against, and `getClaims` falls back to `getUser` on its own. The
+ * security is identical in both cases; only the speed differs. See
+ * docs/PERFORMANCE.md for how to move a project to asymmetric keys.
  */
 export const getSessionIdentity = cache(async function getSessionIdentity(): Promise<SessionIdentity | null> {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
+  const { data, error } = await supabase.auth.getClaims();
+  const claims = data?.claims;
+  if (error || !claims || typeof claims.sub !== 'string') return null;
 
+  const email = claims.email;
   return {
-    id: user.id,
-    email: user.email ?? null,
+    id: claims.sub,
+    email: typeof email === 'string' && email.length > 0 ? email : null,
     // `is_anonymous` marks a guest session created through signInAnonymously.
-    isAnonymous: Boolean((user as { is_anonymous?: boolean }).is_anonymous),
+    // It is a signed claim, so it is as trustworthy as the id beside it.
+    isAnonymous: claims.is_anonymous === true,
   };
+});
+
+/**
+ * The viewer's profile row, on its own.
+ *
+ * Split out from `getSessionUser` so a page can ask for it *alongside* its own
+ * data instead of in front of it. Cached, so a layout and the page inside it
+ * still share one read.
+ */
+export const getOwnProfile = cache(async function getOwnProfile(
+  userId: string,
+): Promise<ProfileRow | null> {
+  const supabase = await createClient();
+  const { data } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
+  return (data as ProfileRow | null) ?? null;
 });
 
 /** Current viewer, guest or registered. Returns null when nobody is signed in. */
 export const getSessionUser = cache(async function getSessionUser(): Promise<SessionUser | null> {
   const identity = await getSessionIdentity();
   if (!identity) return null;
-
-  const supabase = await createClient();
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', identity.id)
-    .maybeSingle();
-
-  return { ...identity, profile: profile ?? null };
+  return { ...identity, profile: await getOwnProfile(identity.id) };
 });
 
 /** For pages that only registered accounts may open. */

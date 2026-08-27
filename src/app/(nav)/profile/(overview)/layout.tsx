@@ -10,7 +10,7 @@
 import { PageShell } from '@/components/layout/PageShell';
 import { ProfileHeader } from '@/components/profile/ProfileHeader';
 import { ProfileTabs } from '@/components/profile/ProfileTabs';
-import { requireRegisteredUser } from '@/lib/auth';
+import { getOwnProfile, requireRegisteredUserId } from '@/lib/auth';
 import { computeLifetimeStats, summariseByGroup } from '@/lib/domain/stats';
 import { loadPlayerHistory } from '@/lib/data/profile';
 import { countIncomingRequests } from '@/lib/data/friends';
@@ -18,10 +18,13 @@ import { countIncomingRequests } from '@/lib/data/friends';
 export const dynamic = 'force-dynamic';
 
 export default async function ProfileLayout({ children }: { children: React.ReactNode }) {
-  const user = await requireRegisteredUser('/profile');
-  // Independent of each other, so they go together rather than one after the
-  // other — the second was waiting on the first for no reason.
-  const [{ games }, pendingRequests] = await Promise.all([
+  const user = await requireRegisteredUserId('/profile');
+  // Three independent reads, so they go together rather than one after the
+  // other. The profile row used to come back as part of the session check and
+  // therefore in front of these; it is the viewer's name and picture, not a
+  // permission, and nothing here waits on it.
+  const [profile, { games }, pendingRequests] = await Promise.all([
+    getOwnProfile(user.id),
     loadPlayerHistory(user.id),
     countIncomingRequests(user.id),
   ]);
@@ -32,8 +35,8 @@ export default async function ProfileLayout({ children }: { children: React.Reac
     <>
       <PageShell withNav>
         <ProfileHeader
-          name={user.profile?.display_name ?? 'שחקן'}
-          avatarUrl={user.profile?.avatar_url ?? null}
+          name={profile?.display_name ?? 'שחקן'}
+          avatarUrl={profile?.avatar_url ?? null}
           stats={stats}
           tableCount={groups.length}
           pendingRequests={pendingRequests}
