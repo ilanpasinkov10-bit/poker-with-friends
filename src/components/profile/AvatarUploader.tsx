@@ -8,7 +8,6 @@ import { useToast } from '@/components/ui/Toast';
 import { errorMessage } from '@/lib/errors';
 import { avatarObjectPath, prepareAvatar } from '@/lib/image/prepare';
 import { removeAvatarAction, setAvatarAction } from '@/lib/actions/profile';
-import { createClient } from '@/lib/supabase/client';
 
 /**
  * Profile photo upload built for phone cameras.
@@ -17,6 +16,14 @@ import { createClient } from '@/lib/supabase/client';
  * it is decoded, squared, scaled to at most 1200px and re-encoded in the
  * browser first. Storage still enforces its own 2 MB ceiling and its
  * owner-scoped path policy — neither is relaxed.
+ *
+ * The Supabase browser client is imported when a file is actually chosen, not
+ * when the settings screen opens. It is the whole of supabase-js — auth,
+ * realtime, phoenix, a WebSocket implementation — and this screen wants one
+ * `storage.upload`. Loading it up front put ~67 kB gzipped in front of every
+ * visit to settings, on the phone's own connection, for something most visits
+ * never do. By the time it is needed the picked image is already being decoded
+ * and re-encoded, so the download costs nothing the user waits for twice.
  */
 export function AvatarUploader({
   name,
@@ -43,6 +50,7 @@ export function AvatarUploader({
       }
 
       setStage('uploading');
+      const { createClient } = await import('@/lib/supabase/client');
       const supabase = createClient();
       const {
         data: { user },

@@ -1,10 +1,7 @@
 import type {
-  BuyinType,
   CountingMode,
   JoinMode,
-  PlayerStatus,
   PlayerVisibility,
-  RequestStatus,
   TableStatus,
 } from '@/types/database';
 
@@ -22,13 +19,6 @@ export const TABLE_STATUS_TONE: Record<TableStatus, 'neutral' | 'brand' | 'profi
   COUNTING: 'warn',
   COMPLETED: 'brand',
   CANCELLED: 'loss',
-};
-
-export const PLAYER_STATUS_LABEL: Record<PlayerStatus, string> = {
-  PENDING: 'ממתין לאישור',
-  ACTIVE: 'משחק',
-  REJECTED: 'נדחה',
-  REMOVED: 'הוסר מהשולחן',
 };
 
 export const JOIN_MODE_LABEL: Record<JoinMode, string> = {
@@ -59,19 +49,6 @@ export const COUNTING_MODE_LABEL: Record<CountingMode, string> = {
 export const COUNTING_MODE_DESCRIPTION: Record<CountingMode, string> = {
   ADMIN_COUNT: 'אתם מזינים את הספירה הסופית של כל שחקן',
   SELF_COUNT: 'כל שחקן מזין כמה ז׳יטונים נשארו לו, ואתם מאשרים',
-};
-
-export const REQUEST_STATUS_LABEL: Record<RequestStatus, string> = {
-  PENDING: 'ממתינה לאישור',
-  APPROVED: 'אושרה',
-  REJECTED: 'נדחתה',
-  CANCELLED: 'בוטלה',
-};
-
-export const BUYIN_TYPE_LABEL: Record<BuyinType, string> = {
-  INITIAL_BUYIN: 'כניסה ראשונה',
-  REBUY: 'כניסה נוספת',
-  REVERSAL: 'ביטול כניסה',
 };
 
 /** Hebrew pluralisation for the handful of counters shown in the UI. */

@@ -17,10 +17,6 @@ export function Card({
   );
 }
 
-export function CardTitle({ children, className }: { children: ReactNode; className?: string }) {
-  return <h2 className={cn('text-sm font-semibold text-ink-muted', className)}>{children}</h2>;
-}
-
 export function SectionTitle({ children, action }: { children: ReactNode; action?: ReactNode }) {
   return (
     <div className="mb-3 flex items-center justify-between gap-3">
