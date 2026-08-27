@@ -4,13 +4,17 @@ import { TablesBrowser } from '@/components/tables/TablesBrowser';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { requireUserId } from '@/lib/auth';
 import { loadMyTables } from '@/lib/data/profile';
+import { summariseMyTables } from '@/lib/domain/tables';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'השולחנות שלי' };
 
 export default async function MyTablesPage() {
-  const user = await requireUserId('/tables');
-  const tables = await loadMyTables(user.id);
+  // The query does not need to know who is asking — RLS already decides which
+  // tables come back — so it goes alongside the session check rather than
+  // behind it. The check still runs, and still redirects.
+  const [user, rows] = await Promise.all([requireUserId('/tables'), loadMyTables()]);
+  const tables = summariseMyTables(rows, user.id);
 
   return (
     <>

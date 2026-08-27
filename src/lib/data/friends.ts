@@ -1,12 +1,12 @@
 import 'server-only';
 
 import {
-  otherUserId,
-  type FriendRequestSummary,
+  summariseFriendships,
+  type FriendsOverview,
+  type FriendshipWithPeople,
   type FriendSummary,
 } from '@/lib/domain/friends';
 import { createClient } from '@/lib/supabase/server';
-import type { FriendshipRow, ProfileRow } from '@/types/database';
 
 /**
  * Reading the caller's own corner of the friend graph.
@@ -16,75 +16,37 @@ import type { FriendshipRow, ProfileRow } from '@/types/database';
  * literally every row this query can see — there is no user id filter here
  * doing security work that the database is not already doing.
  *
- * Profiles are fetched in a second query rather than through an embedded join,
- * because the join would be evaluated against the same policy anyway and this
- * keeps the two concerns legible: which rows exist, then who those people are.
+ * Profiles come back embedded rather than from a second query. The second
+ * query could not start until the first had returned the ids to ask about, so
+ * it cost a full network leg in the middle of the screen's load. The embed is
+ * evaluated against the same `profiles` policies the separate select was, so
+ * the same people are visible and the same ones are not.
+ *
+ * Both foreign keys point at `profiles`, so each is named explicitly —
+ * PostgREST cannot pick between two paths to the same table on its own.
  */
+const WITH_PEOPLE =
+  '*, person_a:profiles!friendships_user_a_fkey(id, display_name, avatar_url),' +
+  ' person_b:profiles!friendships_user_b_fkey(id, display_name, avatar_url)';
 
-export interface FriendsOverview {
-  friends: FriendSummary[];
-  /** Requests waiting for the caller to answer. */
-  incoming: FriendRequestSummary[];
-  /** Requests the caller has sent and can still withdraw. */
-  outgoing: FriendRequestSummary[];
+/**
+ * The rows themselves, without knowing yet who is asking.
+ *
+ * The RLS policy returns only rows the caller is part of, so there is no user
+ * id filter here doing security work — which means this read can start before
+ * the session check has finished rather than after it.
+ */
+export async function loadFriendshipRows(): Promise<FriendshipWithPeople[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from('friendships')
+    .select(WITH_PEOPLE)
+    .in('status', ['PENDING', 'ACCEPTED']);
+  return (data ?? []) as unknown as FriendshipWithPeople[];
 }
 
-const EMPTY: FriendsOverview = { friends: [], incoming: [], outgoing: [] };
-
 export async function loadFriendsOverview(userId: string): Promise<FriendsOverview> {
-  const supabase = await createClient();
-
-  const { data: rows } = await supabase
-    .from('friendships')
-    .select('*')
-    .in('status', ['PENDING', 'ACCEPTED']);
-
-  const friendships = (rows ?? []) as FriendshipRow[];
-  if (friendships.length === 0) return EMPTY;
-
-  const otherIds = [...new Set(friendships.map((row) => otherUserId(row, userId)))];
-  const { data: profiles } = await supabase
-    .from('profiles')
-    .select('id, display_name, avatar_url')
-    .in('id', otherIds);
-
-  const byId = new Map(
-    ((profiles ?? []) as Pick<ProfileRow, 'id' | 'display_name' | 'avatar_url'>[]).map(
-      (profile) => [profile.id, profile] as const,
-    ),
-  );
-
-  const friends: FriendSummary[] = [];
-  const incoming: FriendRequestSummary[] = [];
-  const outgoing: FriendRequestSummary[] = [];
-
-  for (const row of friendships) {
-    const id = otherUserId(row, userId);
-    const profile = byId.get(id);
-    // A profile that cannot be read is a row whose other side has been
-    // deleted mid-flight. Skipping it is better than rendering a blank card.
-    if (!profile) continue;
-
-    const summary: FriendSummary = {
-      userId: id,
-      displayName: profile.display_name,
-      avatarUrl: profile.avatar_url,
-    };
-
-    if (row.status === 'ACCEPTED') {
-      friends.push(summary);
-    } else if (row.requested_by === userId) {
-      outgoing.push({ ...summary, requestedAt: row.updated_at });
-    } else {
-      incoming.push({ ...summary, requestedAt: row.updated_at });
-    }
-  }
-
-  // Deliberately unordered. A list's order is a property of how it is read,
-  // not of how it was stored, so each component sorts what it renders — which
-  // also means a component cannot be handed an unsorted list by a caller that
-  // forgot.
-  return { friends, incoming, outgoing };
+  return summariseFriendships(await loadFriendshipRows(), userId);
 }
 
 /** Just the accepted friends — what the table's invite sheet needs. */

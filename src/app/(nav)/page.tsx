@@ -4,7 +4,7 @@ import { PageShell } from '@/components/layout/PageShell';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
 import { Num } from '@/components/ui/Num';
-import { getSessionUser } from '@/lib/auth';
+import { getOwnProfile, getSessionIdentity } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
 import { formatDate, formatMoney } from '@/lib/format';
 import { isSupabaseConfigured } from '@/lib/env';
@@ -16,8 +16,14 @@ export const dynamic = 'force-dynamic';
 export default async function HomePage() {
   if (!isSupabaseConfigured()) return <NotConfigured />;
 
-  const user = await getSessionUser();
-  const liveTables = user ? await loadLiveTables() : [];
+  const identity = await getSessionIdentity();
+  // Who the viewer is and what is happening tonight are separate facts in
+  // separate tables. Asking for the name first and the games only after it came
+  // back cost a whole network leg for no reason.
+  const [profile, liveTables] = identity
+    ? await Promise.all([getOwnProfile(identity.id), loadLiveTables()])
+    : [null, []];
+  const user = identity ? { ...identity, profile } : null;
 
   return (
     <>
