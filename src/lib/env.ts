@@ -1,10 +1,16 @@
-import { z } from 'zod';
-
 /**
  * Environment access is lazy and validated on first use rather than at module
  * load, so that `next build` succeeds on a machine that has no Supabase
  * project configured yet. Anything that actually talks to Supabase fails with
  * an explicit message instead of a confusing runtime error.
+ *
+ * The two checks below are written out by hand rather than declared with zod,
+ * because this module is reachable from the browser: `supabase/client.ts` is a
+ * client module and imports `publicEnv`. Importing a schema library here put
+ * the whole of zod into the client bundle of every route that talks to
+ * Supabase from the browser — the table screen and profile settings — to
+ * validate two values that Next has already inlined as string literals at
+ * build time. The browser paid ~68 kB gzipped for it and never ran a line.
  *
  * Supabase renamed its API keys: the browser key is now the *publishable* key
  * (`sb_publishable_…`) and the privileged one is the *secret* key
@@ -16,13 +22,6 @@ import { z } from 'zod';
  * rather than looked up dynamically.
  */
 
-const publicSchema = z.object({
-  NEXT_PUBLIC_SUPABASE_URL: z.string().url('NEXT_PUBLIC_SUPABASE_URL must be a valid URL'),
-  publishableKey: z
-    .string()
-    .min(20, 'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY (or NEXT_PUBLIC_SUPABASE_ANON_KEY) is missing'),
-});
-
 export interface PublicEnv {
   NEXT_PUBLIC_SUPABASE_URL: string;
   /** The browser-safe key: publishable key, or legacy anon key. */
@@ -31,24 +30,47 @@ export interface PublicEnv {
 
 let cachedPublic: PublicEnv | null = null;
 
+/** Exported for its own tests; `publicEnv` is what everything else calls. */
+export function checkPublicEnv(url: unknown, key: unknown): string[] {
+  const issues: string[] = [];
+
+  if (typeof url !== 'string' || !isUrl(url)) {
+    issues.push('NEXT_PUBLIC_SUPABASE_URL must be a valid URL');
+  }
+  if (typeof key !== 'string' || key.length < 20) {
+    issues.push('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY (or NEXT_PUBLIC_SUPABASE_ANON_KEY) is missing');
+  }
+
+  return issues;
+}
+
+function isUrl(value: string): boolean {
+  try {
+    // Matches what the schema accepted: anything URL() parses, which is what
+    // the Supabase client itself will be handed.
+    new URL(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function publicEnv(): PublicEnv {
   if (cachedPublic) return cachedPublic;
 
-  const parsed = publicSchema.safeParse({
-    NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
-    publishableKey:
-      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-  });
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const publishableKey =
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  if (!parsed.success) {
+  const issues = checkPublicEnv(url, publishableKey);
+  if (issues.length > 0) {
     throw new Error(
-      `Supabase is not configured. ${parsed.error.issues.map((issue) => issue.message).join('; ')}. ` +
+      `Supabase is not configured. ${issues.join('; ')}. ` +
         'Copy .env.example to .env.local and fill in your project values (see docs/SETUP.md).',
     );
   }
 
-  cachedPublic = parsed.data;
+  cachedPublic = { NEXT_PUBLIC_SUPABASE_URL: url as string, publishableKey: publishableKey as string };
   return cachedPublic;
 }
 

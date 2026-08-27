@@ -1,4 +1,4 @@
-import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes } from 'react';
+import type { InputHTMLAttributes, ReactNode } from 'react';
 import { cn } from '@/lib/cn';
 
 /**
@@ -75,18 +75,6 @@ export function TextInput({ className, ltr, ...rest }: TextInputProps) {
       lang={native ? 'he-IL' : rest.lang}
       className={cn(CONTROL, ltr && 'ltr-num text-start', native && NATIVE_PICKER, className)}
     />
-  );
-}
-
-export function SelectInput({
-  className,
-  children,
-  ...rest
-}: SelectHTMLAttributes<HTMLSelectElement>) {
-  return (
-    <select {...rest} className={cn(CONTROL, 'appearance-none bg-left-2', className)}>
-      {children}
-    </select>
   );
 }
 

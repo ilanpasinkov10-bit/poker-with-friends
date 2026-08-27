@@ -72,12 +72,6 @@ export function formatDateTime(value: string | Date): string {
   return `${formatDate(value)} · ${formatTime(value)}`;
 }
 
-export function formatShortDate(value: string | Date): string {
-  const date = toDate(value);
-  const opts: Intl.DateTimeFormatOptions = { day: '2-digit', month: '2-digit' };
-  return `${part(date, opts, 'day')}.${part(date, opts, 'month')}`;
-}
-
 /** Milliseconds -> "01:42:36" (or "42:36" under an hour). Always LTR-safe. */
 export function formatDuration(ms: number): string {
   const clamped = Math.max(0, Math.floor(ms / 1000));
@@ -86,39 +80,6 @@ export function formatDuration(ms: number): string {
   const seconds = clamped % 60;
   const pad = (n: number) => String(n).padStart(2, '0');
   return hours > 0 ? `${pad(hours)}:${pad(minutes)}:${pad(seconds)}` : `${pad(minutes)}:${pad(seconds)}`;
-}
-
-/** "לפני 3 ימים" style relative label, for history lists. */
-export function formatRelativeDays(value: string | Date): string {
-  const diffMs = Date.now() - toDate(value).getTime();
-  const days = Math.floor(diffMs / 86_400_000);
-  if (days <= 0) return 'היום';
-  if (days === 1) return 'אתמול';
-  if (days < 7) return `לפני ${days} ימים`;
-  if (days < 30) {
-    const weeks = Math.floor(days / 7);
-    return weeks === 1 ? 'לפני שבוע' : `לפני ${weeks} שבועות`;
-  }
-  const months = Math.floor(days / 30);
-  if (months < 12) return months === 1 ? 'לפני חודש' : `לפני ${months} חודשים`;
-  const years = Math.floor(days / 365);
-  return years === 1 ? 'לפני שנה' : `לפני ${years} שנים`;
-}
-
-/** Datetime-local input value in Israel time, for the create-table form. */
-export function toLocalInputValue(value: string | Date): string {
-  const date = toDate(value);
-  const opts: Intl.DateTimeFormatOptions = {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-  };
-  const p = parts(date, opts);
-  const get = (type: Intl.DateTimeFormatPartTypes) => p.find((x) => x.type === type)?.value ?? '';
-  return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}`;
 }
 
 export function initialsOf(name: string): string {

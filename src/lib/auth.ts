@@ -97,23 +97,6 @@ export const getSessionUser = cache(async function getSessionUser(): Promise<Ses
   return { ...identity, profile: await getOwnProfile(identity.id) };
 });
 
-/** For pages that only registered accounts may open. */
-export async function requireRegisteredUser(redirectTo: string): Promise<SessionUser> {
-  const user = await getSessionUser();
-  if (!user || user.isAnonymous) {
-    redirect(`/auth/sign-in?next=${encodeURIComponent(redirectTo)}`);
-  }
-  return user;
-}
-
-export async function requireAnyUser(redirectTo: string): Promise<SessionUser> {
-  const user = await getSessionUser();
-  if (!user) {
-    redirect(`/auth/sign-in?next=${encodeURIComponent(redirectTo)}`);
-  }
-  return user;
-}
-
 /**
  * The same guarantee as `requireAnyUser`, without the profile row.
  *

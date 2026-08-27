@@ -826,8 +826,6 @@ export const SCREENS: PreviewScreen[] = [
   },
 ];
 
-export const SCREEN_IDS = SCREENS.map((screen) => screen.id);
-
 export function findScreen(id: string | undefined): PreviewScreen | undefined {
   return SCREENS.find((screen) => screen.id === id);
 }
