@@ -49,6 +49,7 @@ const MESSAGES: Record<string, string> = {
   FRIEND_REQUEST_NOT_FOUND: 'בקשת החברות לא נמצאה',
   NOT_FRIENDS: 'אתם לא חברים',
   GUEST_CANNOT_FRIEND: 'חברויות זמינות רק לחשבונות רשומים',
+  TARGET_IS_GUEST: 'אפשר להוסיף כחברים רק חשבונות רשומים',
 
   // Leaving a table. Each has its own code so a failure names its own cause in
   // the server log; the Hebrew stays plain and free of internals.
