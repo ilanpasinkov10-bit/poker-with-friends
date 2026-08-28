@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { guard, ok, type ActionResult } from '@/lib/action-result';
 import { AppError } from '@/lib/errors';
+import { MAX_LEVELS, serialiseLevels, structureProblems } from '@/lib/domain/blinds';
 import { shekelsToAgorot } from '@/lib/domain/money';
 import { requireUuid, singleRow } from '@/lib/rpc';
 import { notifyGameCancelled, notifyGameStarted } from '@/lib/push/table-events';
@@ -24,6 +25,24 @@ const createSchema = z.object({
   adminPlays: z.boolean(),
   /** Optional recurring circle. Reused by name so weekly games stack up. */
   groupName: z.string().trim().max(60).optional(),
+  /**
+   * Optional automatic blind increases. Absent or empty means the table has no
+   * blind timer and behaves exactly as it always has.
+   */
+  blindLevels: z
+    .array(
+      z.union([
+        z.object({
+          kind: z.literal('BLINDS'),
+          smallBlind: z.number().int().min(1).max(100_000_000),
+          bigBlind: z.number().int().min(1).max(100_000_000),
+          minutes: z.number().int().min(1).max(600),
+        }),
+        z.object({ kind: z.literal('BREAK'), minutes: z.number().int().min(1).max(600) }),
+      ]),
+    )
+    .max(MAX_LEVELS)
+    .optional(),
 });
 
 export type CreateTableInput = z.input<typeof createSchema>;
@@ -86,6 +105,20 @@ export async function createTableAction(
     }
 
     const tableId = requireUuid(table.id, 'create_poker_table.id');
+
+    // The ladder is written in a second call rather than as another dozen
+    // parameters on create_poker_table, whose signature every other caller
+    // shares. It runs only while the table is still WAITING, and the database
+    // validates it again — the same rules the form applied.
+    if (values.blindLevels && values.blindLevels.length > 0) {
+      const problems = structureProblems(values.blindLevels);
+      if (problems.length > 0) throw new AppError('INVALID_BLIND_STRUCTURE', problems[0]);
+      const { error: blindError } = await supabase.rpc('set_blind_structure', {
+        p_table: tableId,
+        p_levels: serialiseLevels(values.blindLevels),
+      });
+      if (blindError) throw blindError;
+    }
     const joinCode =
       typeof table.join_code === 'string' && /^[A-Z0-9]{5}$/.test(table.join_code)
         ? table.join_code
@@ -113,6 +146,33 @@ export async function createTableAction(
 
     revalidatePath('/tables');
     return ok({ tableId, joinCode });
+  });
+}
+
+/** The manager's blind-timer controls. Every one is authorised in the database. */
+export async function blindTimerAction(
+  tableId: string,
+  command: 'PAUSE' | 'RESUME' | 'NEXT' | 'PREVIOUS' | 'STOP',
+): Promise<ActionResult> {
+  return guard(async () => {
+    const supabase = await createClient();
+    const { error } =
+      command === 'PAUSE'
+        ? await supabase.rpc('pause_blind_timer', { p_table: tableId })
+        : command === 'RESUME'
+          ? await supabase.rpc('resume_blind_timer', { p_table: tableId })
+          : command === 'STOP'
+            ? await supabase.rpc('stop_blind_timer', { p_table: tableId })
+            : await supabase.rpc('step_blind_level', {
+                p_table: tableId,
+                p_direction: command === 'NEXT' ? 1 : -1,
+              });
+    if (error) throw error;
+
+    // No revalidatePath: every player's screen already learns about this
+    // through the realtime subscription the table screen holds, and the
+    // manager's own screen is refreshed by that same channel.
+    return ok();
   });
 }
 
