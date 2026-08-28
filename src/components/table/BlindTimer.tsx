@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { Card } from '@/components/ui/Card';
+import { ConfirmDialog } from '@/components/ui/Modal';
 import { Num } from '@/components/ui/Num';
 import { useToast } from '@/components/ui/Toast';
 import { cn } from '@/lib/cn';
@@ -45,7 +46,12 @@ export function BlindTimer({
   isAdmin: boolean;
   soundsEnabled: boolean;
 }) {
-  // Null until mounted, so the server and the browser never disagree on "now".
+  // Null until mounted. The server cannot render this card: every value on it
+  // is a function of the current instant, so a server render and the hydration
+  // that follows it a moment later disagree the moment a second ticks over —
+  // which React reports as a hydration failure and recovers from by throwing
+  // the tree away. There is nothing to server-render here that would still be
+  // true by the time it arrived.
   const [now, setNow] = useState<number | null>(null);
 
   useEffect(() => {
@@ -62,7 +68,7 @@ export function BlindTimer({
     pausedAt: table.blind_paused_at,
   };
 
-  const view = at(state, table.status, now ?? Date.now());
+  const view = now === null ? null : at(state, table.status, now);
   const announced = useRef<number | null>(null);
 
   useEffect(() => {
@@ -131,6 +137,7 @@ function AdminControls({
 }) {
   const toast = useToast();
   const [pending, startTransition] = useTransition();
+  const [confirmCancel, setConfirmCancel] = useState(false);
 
   const run = (command: 'PAUSE' | 'RESUME' | 'NEXT' | 'PREVIOUS' | 'STOP', done: string) =>
     startTransition(async () => {
@@ -140,32 +147,55 @@ function AdminControls({
     });
 
   return (
-    <div className="mt-4 grid grid-cols-2 gap-2 border-t border-line-soft pt-3">
-      {paused ? (
-        <ControlButton onClick={() => run('RESUME', 'הטיימר ממשיך')} disabled={pending}>
-          המשך
+    <>
+      <div className="mt-4 grid grid-cols-2 gap-2 border-t border-line-soft pt-3">
+        {paused ? (
+          <ControlButton onClick={() => run('RESUME', 'הטיימר ממשיך')} disabled={pending}>
+            המשך
+          </ControlButton>
+        ) : (
+          <ControlButton onClick={() => run('PAUSE', 'הטיימר הושהה')} disabled={pending}>
+            השהה
+          </ControlButton>
+        )}
+        {/* Ends the blind increases for this game — not a pause, and not
+            undoable from here, so it asks first and is coloured like what it
+            does. Opening a dialog is also what makes a double tap harmless:
+            the second tap lands on the dialog, not on a second cancel. */}
+        <ControlButton onClick={() => setConfirmCancel(true)} disabled={pending} tone="danger">
+          בטל טיימר
         </ControlButton>
-      ) : (
-        <ControlButton onClick={() => run('PAUSE', 'הטיימר הושהה')} disabled={pending}>
-          השהה
+        <ControlButton
+          onClick={() => run('PREVIOUS', 'חזרנו שלב אחורה')}
+          disabled={pending || view.index === 0}
+        >
+          שלב קודם
         </ControlButton>
-      )}
-      <ControlButton onClick={() => run('STOP', 'הטיימר נעצר')} disabled={pending} tone="quiet">
-        עצור טיימר
-      </ControlButton>
-      <ControlButton
-        onClick={() => run('PREVIOUS', 'חזרנו שלב אחורה')}
-        disabled={pending || view.index === 0}
-      >
-        שלב קודם
-      </ControlButton>
-      <ControlButton
-        onClick={() => run('NEXT', 'עברנו לשלב הבא')}
-        disabled={pending || view.isFinal}
-      >
-        שלב הבא
-      </ControlButton>
-    </div>
+        <ControlButton
+          onClick={() => run('NEXT', 'עברנו לשלב הבא')}
+          disabled={pending || view.isFinal}
+        >
+          שלב הבא
+        </ControlButton>
+      </div>
+
+      <ConfirmDialog
+        open={confirmCancel}
+        tone="danger"
+        title="ביטול טיימר הבליינדים"
+        message="האם אתה בטוח שברצונך לבטל את טיימר הבליינדים? פעולה זו תפסיק את מנגנון העלאת הבליינדים למשחק הנוכחי."
+        cancelLabel="חזור"
+        confirmLabel="כן, בטל טיימר"
+        loading={pending}
+        onCancel={() => setConfirmCancel(false)}
+        onConfirm={() => {
+          // The dialog closes on the way out, so a second tap on a stale
+          // button has nothing left to confirm.
+          setConfirmCancel(false);
+          run('STOP', 'טיימר הבליינדים בוטל');
+        }}
+      />
+    </>
   );
 }
 
@@ -178,7 +208,7 @@ function ControlButton({
   children: React.ReactNode;
   onClick: () => void;
   disabled?: boolean;
-  tone?: 'normal' | 'quiet';
+  tone?: 'normal' | 'danger';
 }) {
   return (
     <button
@@ -187,8 +217,8 @@ function ControlButton({
       disabled={disabled}
       className={cn(
         'h-11 rounded-xl border text-sm font-bold transition-colors disabled:opacity-40',
-        tone === 'quiet'
-          ? 'border-line bg-surface-2 text-ink-muted'
+        tone === 'danger'
+          ? 'border-loss/40 bg-loss-soft text-loss'
           : 'border-line bg-surface-3 text-ink',
       )}
     >
