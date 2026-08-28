@@ -6,7 +6,12 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Field, OptionGroup, Switch, TextInput } from '@/components/ui/Field';
 import { BlindLevelsEditor } from './BlindLevelsEditor';
-import { structureProblems, type BlindLevel } from '@/lib/domain/blinds';
+import {
+  presetLevels,
+  structureProblems,
+  type BlindLevel,
+  type PresetId,
+} from '@/lib/domain/blinds';
 import { Num } from '@/components/ui/Num';
 import { useToast } from '@/components/ui/Toast';
 import { createTableAction } from '@/lib/actions/tables';
@@ -58,6 +63,17 @@ export function CreateTableForm({
   // it always was, with no blind structure at all.
   const [blindsEnabled, setBlindsEnabled] = useState(false);
   const [blindLevels, setBlindLevels] = useState<BlindLevel[]>([]);
+  const [blindPreset, setBlindPreset] = useState<Exclude<PresetId, 'CUSTOM'>>('STANDARD');
+  /**
+   * Whether the manager has edited the ladder by hand.
+   *
+   * The opening blinds are generated from the starting stack, so changing the
+   * stack should regenerate them — but only while the ladder is still the one
+   * this form wrote. The moment a level is typed into, added, removed or
+   * moved, it belongs to the manager, and changing another table setting must
+   * not quietly throw it away.
+   */
+  const [blindsCustomised, setBlindsCustomised] = useState(false);
 
   const buyInNumber = Number(buyIn);
   const chipsNumber = Number(chips);
@@ -213,7 +229,14 @@ export function CreateTableForm({
                 required
                 ltr
                 value={chips}
-                onChange={(e) => setChips(e.target.value)}
+                onChange={(e) => {
+                  setChips(e.target.value);
+                  // Regenerate the opening blinds for the new stack — unless
+                  // the manager has already made the ladder their own.
+                  if (blindsEnabled && !blindsCustomised) {
+                    setBlindLevels(presetLevels(blindPreset, Number(e.target.value)));
+                  }
+                }}
               />
             </Field>
           </div>
@@ -303,9 +326,28 @@ export function CreateTableForm({
 
         <BlindLevelsEditor
           enabled={blindsEnabled}
-          onEnabledChange={setBlindsEnabled}
+          onEnabledChange={(next) => {
+            setBlindsEnabled(next);
+            // Switching it on writes a fresh ladder for the stack as it stands
+            // now. Switching it off and on again after editing keeps the edits.
+            if (next && !blindsCustomised) {
+              setBlindLevels(presetLevels(blindPreset, chipsNumber));
+            }
+          }}
           levels={blindLevels}
-          onLevelsChange={setBlindLevels}
+          onLevelsChange={(next) => {
+            setBlindLevels(next);
+            setBlindsCustomised(true);
+          }}
+          startingChips={chipsNumber}
+          onPresetChange={(preset) => {
+            setBlindPreset(preset);
+            setBlindLevels(presetLevels(preset, chipsNumber));
+            // A preset is a fresh generated ladder, not a customisation: the
+            // pace is now the manager's choice, but the numbers are still ours
+            // to regenerate if the stack changes.
+            setBlindsCustomised(false);
+          }}
         />
       </Card>
 

@@ -1770,8 +1770,13 @@ begin
   perform expect_error(format('select public.pause_blind_timer(%L)', tbl),
     'INVALID_STATUS', 'and the timer can no longer be controlled');
 
-  -- Explicitly stopping it.
+  -- Cancelling it. Destructive, and admin-only in the database — the
+  -- confirmation in the UI is a courtesy, not the thing that refuses.
   perform public.set_table_status(tbl, 'ACTIVE');
+  perform test_as(shay);
+  perform expect_error(format('select public.stop_blind_timer(%L)', tbl),
+    'NOT_AUTHORIZED', 'a player cannot cancel the blind timer');
+  perform test_as(ilan);
   perform public.stop_blind_timer(tbl);
   select * into t from public.poker_tables where id = tbl;
   perform expect(t.blind_status = 'STOPPED' and t.blind_level_started_at is null,

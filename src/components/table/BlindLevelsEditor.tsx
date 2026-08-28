@@ -7,6 +7,7 @@ import {
   DEFAULT_MINUTES,
   MAX_LEVELS,
   PRESET_LABEL,
+  defaultSmallBlind,
   describeLevel,
   matchPreset,
   presetLevels,
@@ -20,22 +21,32 @@ import {
  *
  * A preset fills the list in and nothing more: every level stays editable
  * afterwards, and the chosen preset simply reads as מותאם אישית once the
- * numbers stop matching it. Nothing here is generated from a formula — a
- * manager who wants 5/10 followed by 10/25 followed by 25/50 types exactly
- * that, and a manager who wants something else is not argued with.
+ * numbers stop matching it. Nothing here is generated from a formula the
+ * manager cannot overrule — a manager who wants 5/10 followed by 10/25
+ * followed by 25/50 types exactly that.
+ *
+ * Every change made here is reported as a customisation, so the form knows
+ * never to regenerate over it when another table setting changes.
  */
 export function BlindLevelsEditor({
   enabled,
   onEnabledChange,
   levels,
   onLevelsChange,
+  startingChips,
+  onPresetChange,
 }: {
   enabled: boolean;
   onEnabledChange: (next: boolean) => void;
   levels: BlindLevel[];
+  /** Edited by hand: the caller must stop regenerating defaults over it. */
   onLevelsChange: (next: BlindLevel[]) => void;
+  /** Chips each player is given, which is what the opening blinds come from. */
+  startingChips: number;
+  /** A fresh generated ladder — not a customisation. */
+  onPresetChange: (preset: Exclude<PresetId, 'CUSTOM'>) => void;
 }) {
-  const preset = matchPreset(levels);
+  const preset = matchPreset(levels, startingChips);
   const problems = enabled ? structureProblems(levels) : [];
 
   const setLevel = (index: number, next: BlindLevel) =>
@@ -56,8 +67,8 @@ export function BlindLevelsEditor({
       {
         kind: 'BLINDS',
         // A sensible next rung, still fully editable.
-        smallBlind: lastBlinds ? lastBlinds.bigBlind : 5,
-        bigBlind: lastBlinds ? lastBlinds.bigBlind * 2 : 10,
+        smallBlind: lastBlinds ? lastBlinds.bigBlind : defaultSmallBlind(startingChips),
+        bigBlind: lastBlinds ? lastBlinds.bigBlind * 2 : defaultSmallBlind(startingChips) * 2,
         minutes: levels.at(-1)?.minutes ?? DEFAULT_MINUTES,
       },
     ]);
@@ -66,10 +77,7 @@ export function BlindLevelsEditor({
     <div className="grid gap-3">
       <Switch
         checked={enabled}
-        onChange={(next) => {
-          onEnabledChange(next);
-          if (next && levels.length === 0) onLevelsChange(presetLevels('STANDARD'));
-        }}
+        onChange={(next) => onEnabledChange(next)}
         label="העלאת בליינדים"
         description="טיימר משותף שמעלה את הבליינדים לפי שלבים. מתחיל כשמתחילים את המשחק."
       />
@@ -81,7 +89,7 @@ export function BlindLevelsEditor({
               name="blindPreset"
               value={preset}
               onChange={(next) => {
-                if (next !== 'CUSTOM') onLevelsChange(presetLevels(next));
+                if (next !== 'CUSTOM') onPresetChange(next);
               }}
               options={(['RELAXED', 'STANDARD', 'TURBO', 'CUSTOM'] as const).map((id) => ({
                 value: id,
