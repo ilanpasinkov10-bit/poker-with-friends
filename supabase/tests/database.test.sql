@@ -1990,6 +1990,259 @@ begin
 end $$;
 
 \echo ''
+\echo '── inviting a friend to a table ──'
+do $$
+declare
+  ilan   uuid := 'a0000000-0000-4000-8000-000000000001';
+  shay   uuid := 'a0000000-0000-4000-8000-000000000002';
+  michal uuid := 'a0000000-0000-4000-8000-000000000003';
+  tbl    uuid;
+  other  uuid;
+  inv    uuid;
+  again  uuid;
+  seats  int;
+  answer jsonb;
+begin
+  -- ילן runs a table and is friends with שי. מיכל is neither.
+  perform test_as(ilan);
+  tbl := (public.create_poker_table('ערב הזמנות', current_date, now(), now() + interval '5h',
+            5000, 500, 6, 'AUTO_JOIN', 'OPEN', 'ADMIN_COUNT', true, null)).id;
+  perform public.send_friend_request(shay);
+  perform test_as(shay);
+  perform public.respond_to_friend_request(ilan, true);
+
+  -- Only the people running the table may invite to it. The refusal is the
+  -- same one a table that does not exist gets, so this cannot be used to find
+  -- out which table ids are real.
+  perform expect_error(format('select public.invite_friend_to_table(%L, %L)', tbl, michal),
+    'NOT_AUTHORIZED', 'a player cannot invite to somebody else''s table');
+  perform expect_error(
+    format('select public.invite_friend_to_table(%L, %L)',
+           '00000000-0000-4000-8000-00000000dead', michal),
+    'NOT_AUTHORIZED', 'and an unknown table id gives nothing away');
+
+  perform test_as(ilan);
+  perform expect_error(format('select public.invite_friend_to_table(%L, %L)', tbl, ilan),
+    'CANNOT_INVITE_SELF', 'nobody invites themselves');
+
+  -- Only a friend, decided by the friends system rather than a second one.
+  perform expect_error(format('select public.invite_friend_to_table(%L, %L)', tbl, michal),
+    'NOT_FRIENDS', 'a stranger cannot be invited');
+
+  inv := public.invite_friend_to_table(tbl, shay);
+  perform expect(
+    (select count(*) from public.table_invitations
+      where table_id = tbl and invitee_id = shay and inviter_id = ilan
+        and status = 'PENDING') = 1,
+    'an admin can invite a friend, and it is recorded once');
+
+  -- Asking twice is the same invitation, not a second one.
+  again := public.invite_friend_to_table(tbl, shay);
+  perform expect(again = inv, 'inviting the same friend again returns the same invitation');
+  perform expect((select count(*) from public.table_invitations where table_id = tbl) = 1,
+    'and does not create a duplicate');
+  perform expect_error(
+    format('insert into public.table_invitations (table_id, inviter_id, invitee_id)
+            values (%L, %L, %L)', tbl, ilan, shay),
+    'duplicate key value violates unique constraint "table_invitations_table_id_invitee_id_key"',
+    'the database itself refuses a second invitation for the pair');
+
+  -- Who may read the row.
+  set local role authenticated;
+  perform expect((select count(*) from public.table_invitations where id = inv) = 1,
+    'the admin who sent it can see it');
+  reset role;
+  perform test_as(shay);
+  set local role authenticated;
+  perform expect((select count(*) from public.table_invitations where id = inv) = 1,
+    'the person invited can see it');
+  reset role;
+  perform test_as(michal);
+  set local role authenticated;
+  perform expect((select count(*) from public.table_invitations) = 0,
+    'and nobody else can see it at all');
+
+  -- No client write is granted, so a forged PostgREST call has nothing to aim at.
+  perform expect_error(
+    format('insert into public.table_invitations (table_id, inviter_id, invitee_id)
+            values (%L, %L, %L)', tbl, michal, michal),
+    'permission denied for table table_invitations',
+    'a client cannot invite itself by writing the row');
+  perform expect_error(
+    'update public.table_invitations set status = ''ACCEPTED''',
+    'permission denied for table table_invitations',
+    'nor accept one by writing the row');
+  perform expect_error(
+    'delete from public.table_invitations',
+    'permission denied for table table_invitations',
+    'nor delete one');
+  reset role;
+
+  -- Only the person invited may answer. An id that is not yours is not found,
+  -- rather than refused — a refusal would confirm it exists.
+  perform expect_error(format('select public.respond_to_table_invitation(%L, true)', inv),
+    'INVITATION_NOT_FOUND', 'somebody else cannot accept your invitation');
+  perform expect_error(format('select public.respond_to_table_invitation(%L, false)', inv),
+    'INVITATION_NOT_FOUND', 'nor decline it on your behalf');
+  perform test_as(ilan);
+  perform expect_error(format('select public.respond_to_table_invitation(%L, true)', inv),
+    'INVITATION_NOT_FOUND', 'not even the person who sent it');
+  perform expect(
+    (select status from public.table_invitations where id = inv)::text = 'PENDING',
+    'and the invitation is still exactly as it was');
+
+  -- Accepting seats them once, through the one function that creates seats.
+  perform test_as(shay);
+  answer := public.respond_to_table_invitation(inv, true);
+  perform expect(answer ->> 'status' = 'ACCEPTED', 'accepting reports the invitation accepted');
+  perform expect((answer ->> 'table_id')::uuid = tbl, 'and says which table it was for');
+  select count(*) into seats from public.table_players where table_id = tbl and user_id = shay;
+  perform expect(seats = 1, 'accepting creates exactly one seat');
+  perform expect(
+    (select status from public.table_players where table_id = tbl and user_id = shay)::text = 'ACTIVE',
+    'with the seat the join mode calls for');
+  perform expect(
+    (select count(*) from public.buyin_transactions bt
+      join public.table_players tp on tp.id = bt.table_player_id
+     where tp.table_id = tbl and tp.user_id = shay and bt.type = 'INITIAL_BUYIN') = 1,
+    'and exactly one initial buy-in, the same as joining by link');
+
+  -- A double tap cannot seat somebody twice.
+  answer := public.respond_to_table_invitation(inv, true);
+  perform expect(answer ->> 'status' = 'ACCEPTED', 'accepting twice is the same answer');
+  perform expect(
+    (select count(*) from public.table_players where table_id = tbl and user_id = shay) = 1,
+    'and still exactly one seat');
+  perform expect(
+    (select count(*) from public.buyin_transactions bt
+      join public.table_players tp on tp.id = bt.table_player_id
+     where tp.table_id = tbl and tp.user_id = shay) = 1,
+    'and still exactly one buy-in');
+
+  -- Having said yes, saying no is not an option any more.
+  perform expect_error(format('select public.respond_to_table_invitation(%L, false)', inv),
+    'INVITATION_ALREADY_ANSWERED', 'an accepted invitation cannot then be declined');
+
+  -- And there is nothing left to invite them to.
+  perform test_as(ilan);
+  perform expect_error(format('select public.invite_friend_to_table(%L, %L)', tbl, shay),
+    'ALREADY_AT_TABLE', 'somebody already at the table cannot be invited to it');
+
+  -- ── declining ──
+  other := (public.create_poker_table('ערב שני', current_date, now(), now() + interval '5h',
+              5000, 500, 6, 'AUTO_JOIN', 'OPEN', 'ADMIN_COUNT', true, null)).id;
+  inv := public.invite_friend_to_table(other, shay);
+  perform test_as(shay);
+  answer := public.respond_to_table_invitation(inv, false);
+  perform expect(answer ->> 'status' = 'DECLINED', 'an invitation can be declined');
+  perform expect(
+    not exists (select 1 from public.table_players where table_id = other and user_id = shay),
+    'declining takes no seat');
+  perform expect(public.respond_to_table_invitation(inv, false) ->> 'status' = 'DECLINED',
+    'declining twice is the same answer');
+  perform expect_error(format('select public.respond_to_table_invitation(%L, true)', inv),
+    'INVITATION_ALREADY_ANSWERED', 'a declined invitation cannot be accepted afterwards');
+
+  -- Being asked again after saying no is the thing this most easily gets wrong.
+  perform test_as(ilan);
+  perform expect_error(format('select public.invite_friend_to_table(%L, %L)', other, shay),
+    'INVITATION_ALREADY_ANSWERED', 'somebody who said no is not asked again');
+end $$;
+
+do $$
+declare
+  ilan   uuid := 'a0000000-0000-4000-8000-000000000001';
+  shay   uuid := 'a0000000-0000-4000-8000-000000000002';
+  tbl    uuid;
+  inv    uuid;
+begin
+  -- ── a game that is over ──
+  perform test_as(ilan);
+  tbl := (public.create_poker_table('ערב שנסגר', current_date, now(), now() + interval '5h',
+            5000, 500, 6, 'AUTO_JOIN', 'OPEN', 'ADMIN_COUNT', true, null)).id;
+  inv := public.invite_friend_to_table(tbl, shay);
+  perform public.set_table_status(tbl, 'CANCELLED');
+
+  -- No new invitations to it...
+  perform expect_error(format('select public.invite_friend_to_table(%L, %L)', tbl, shay),
+    'TABLE_CLOSED', 'a game that is over cannot be invited to');
+
+  -- ...and the one already sent cannot be turned into a seat. This is why
+  -- there is no fourth "cancelled" status: the table's own status answers it.
+  perform test_as(shay);
+  perform expect_error(format('select public.respond_to_table_invitation(%L, true)', inv),
+    'TABLE_CLOSED', 'an invitation to a cancelled game cannot be accepted');
+  perform expect(
+    not exists (select 1 from public.table_players where table_id = tbl and user_id = shay),
+    'and no seat was created by trying');
+  -- Declining it is still allowed, so it can be cleared off the home screen.
+  perform expect(public.respond_to_table_invitation(inv, false) ->> 'status' = 'DECLINED',
+    'but it can still be dismissed');
+end $$;
+
+do $$
+declare
+  ilan   uuid := 'a0000000-0000-4000-8000-000000000001';
+  shay   uuid := 'a0000000-0000-4000-8000-000000000002';
+  michal uuid := 'a0000000-0000-4000-8000-000000000003';
+  tbl    uuid;
+  inv    uuid;
+  seat   uuid;
+begin
+  -- ── the name somebody sits under ──
+  -- An invitee never gets to type a name, so a clash has to resolve itself
+  -- rather than becoming NAME_TAKEN in their face.
+  perform test_as(ilan);
+  tbl := (public.create_poker_table('ערב שמות', current_date, now(), now() + interval '5h',
+            5000, 500, 6, 'AUTO_JOIN', 'OPEN', 'ADMIN_COUNT', true, null)).id;
+  insert into public.table_players (table_id, user_id, display_name, status, approved_at)
+  values (tbl, michal, 'שי', 'ACTIVE', now());
+  inv := public.invite_friend_to_table(tbl, shay);
+
+  perform test_as(shay);
+  perform public.respond_to_table_invitation(inv, true);
+  perform expect(
+    (select display_name from public.table_players where table_id = tbl and user_id = shay) = 'שי (2)',
+    'a taken name is resolved for the invitee instead of refusing them');
+  perform expect(
+    (select count(*) from public.table_players where table_id = tbl) = 3,
+    'and everybody else keeps the seat they had');
+
+  -- ── somebody who was removed stays removed ──
+  perform test_as(ilan);
+  tbl := (public.create_poker_table('ערב שלישי', current_date, now(), now() + interval '5h',
+            5000, 500, 6, 'AUTO_JOIN', 'OPEN', 'ADMIN_COUNT', true, null)).id;
+  insert into public.table_players (table_id, user_id, display_name, status)
+  values (tbl, shay, 'שי', 'REMOVED') returning id into seat;
+  inv := public.invite_friend_to_table(tbl, shay);
+  perform test_as(shay);
+  perform expect_error(format('select public.respond_to_table_invitation(%L, true)', inv),
+    'NOT_AUTHORIZED', 'an invitation cannot undo being removed from a table');
+  perform expect(
+    (select status from public.table_players where id = seat)::text = 'REMOVED',
+    'and the removal stands');
+  perform expect(
+    (select status from public.table_invitations where id = inv)::text = 'PENDING',
+    'a failed accept leaves the invitation as it was');
+
+  -- ── unfriending stops the next invitation, not one already given ──
+  -- An invitation is a thing that was said, not a view over the friendship.
+  perform test_as(ilan);
+  tbl := (public.create_poker_table('ערב אחרון', current_date, now(), now() + interval '5h',
+            5000, 500, 6, 'AUTO_JOIN', 'OPEN', 'ADMIN_COUNT', true, null)).id;
+  inv := public.invite_friend_to_table(tbl, shay);
+  perform public.remove_friend(shay);
+  perform expect_error(format('select public.invite_friend_to_table(%L, %L)', tbl, shay),
+    'NOT_FRIENDS', 'somebody who is no longer a friend cannot be invited again');
+  perform test_as(shay);
+  perform expect(public.respond_to_table_invitation(inv, true) ->> 'status' = 'ACCEPTED',
+    'but an invitation already sent can still be taken up');
+  perform expect(
+    (select count(*) from public.table_players where table_id = tbl and user_id = shay) = 1,
+    'and seats them once');
+end $$;
+
+\echo ''
 \echo '── the foreign keys the app embeds through ──'
 do $$
 declare
@@ -2008,7 +2261,9 @@ declare
     'poker_tables_owner_id_fkey',
     'friendships_user_a_fkey',
     'friendships_user_b_fkey',
-    'hidden_tables_table_id_fkey'
+    'hidden_tables_table_id_fkey',
+    'table_invitations_table_id_fkey',
+    'table_invitations_inviter_id_fkey'
   ];
 begin
   foreach fk in array wanted loop
