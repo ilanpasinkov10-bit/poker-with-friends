@@ -48,6 +48,7 @@ import {
   LEFT_PLAYERS,
   OUTGOING_REQUESTS,
   MY_TABLES,
+  MY_TABLES_SPARSE,
   LONG_NAME_PLAYERS,
   SEATED_PLAYERS,
   PENDING_PLAYER,
@@ -648,6 +649,20 @@ export const SCREENS: PreviewScreen[] = [
       <Framed title="השולחנות שלי" subtitle="גלריית מסכים" withNav>
         <TablesBrowser items={MY_TABLES} />
       </Framed>
+    ),
+  },
+  {
+    id: 'my-tables-sparse',
+    label: 'השולחנות שלי — חלק מהמצבים',
+    group: 'פרופיל',
+    note: 'שתי המתנות, אף שולחן פעיל, ספירה אחת, שלושה שהסתיימו ואף אחד שבוטל. אמורות להופיע שלוש כותרות בלבד — כותרת ריקה לא נכתבת. על משחק שהסתיים או בוטל יש גם פעולת הסתרה, שמסירה אותו מהרשימה של המשתמש הזה בלבד.',
+    render: () => (
+      <WithNav>
+        <PageShell withNav>
+          <h1 className="pt-2 text-2xl font-black tracking-tight text-ink">השולחנות שלי</h1>
+          <TablesBrowser items={MY_TABLES_SPARSE} />
+        </PageShell>
+      </WithNav>
     ),
   },
   {

@@ -1,13 +1,13 @@
 'use client';
 
 import { PendingCardLink } from '@/components/layout/PendingLink';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useTransition } from 'react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card, SectionTitle } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Field, OptionGroup, TextInput } from '@/components/ui/Field';
-import { Modal } from '@/components/ui/Modal';
+import { ConfirmDialog, Modal } from '@/components/ui/Modal';
 import { Num } from '@/components/ui/Num';
 import { cn } from '@/lib/cn';
 import { formatDate, formatMoney, formatTime } from '@/lib/format';
@@ -22,6 +22,9 @@ import {
   type StatusFilter,
   type TableFilter,
 } from '@/lib/domain/table-filters';
+import { useToast } from '@/components/ui/Toast';
+import { setTableHiddenAction } from '@/lib/actions/tables';
+import { canHideTable, groupTables } from '@/lib/domain/table-groups';
 import type { PokerTableRow } from '@/types/database';
 
 /**
@@ -82,12 +85,9 @@ export function TablesBrowser({ items }: { items: TableListItem[] }) {
     return filterTables(withFields, filter, today);
   }, [items, filter, today]);
 
-  const live = matches.filter(
-    (t) => t.table.status !== 'COMPLETED' && t.table.status !== 'CANCELLED',
-  );
-  const past = matches.filter(
-    (t) => t.table.status === 'COMPLETED' || t.table.status === 'CANCELLED',
-  );
+  // One section per lifecycle status, in the order a game moves through them,
+  // and none at all for a status nothing is in.
+  const groups = useMemo(() => groupTables(matches), [matches]);
 
   const count = activeFilterCount(filter);
   const filtering = isFiltering(filter);
@@ -156,19 +156,12 @@ export function TablesBrowser({ items }: { items: TableListItem[] }) {
         </div>
       ) : null}
 
-      {live.length > 0 ? (
-        <section className="mt-6">
-          <SectionTitle>פעילים</SectionTitle>
-          <TableList items={live} />
+      {groups.map((group, index) => (
+        <section key={group.status} className={index === 0 ? 'mt-6' : 'mt-8'}>
+          <SectionTitle>{group.title}</SectionTitle>
+          <TableList items={group.items} />
         </section>
-      ) : null}
-
-      {past.length > 0 ? (
-        <section className="mt-8">
-          <SectionTitle>שולחנות קודמים</SectionTitle>
-          <TableList items={past} />
-        </section>
-      ) : null}
+      ))}
 
       <Modal open={sheetOpen} onClose={() => setSheetOpen(false)} title="סינון">
         <div className="grid gap-5">
@@ -236,7 +229,10 @@ function TableList({ items }: { items: TableListItem[] }) {
   return (
     <ul className="grid gap-2">
       {items.map(({ table, role, playerCount }) => (
-        <Card as="li" key={table.id} className="p-0">
+        <Card as="li" key={table.id} className="relative p-0">
+          {/* Outside the link, not inside it: an anchor may not contain a
+              button, and a tap meant for this one must never open the table. */}
+          {canHideTable(table.status) ? <HideAction table={table} /> : null}
           <PendingCardLink href={`/table/${table.id}`}>
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
@@ -256,7 +252,7 @@ function TableList({ items }: { items: TableListItem[] }) {
                 ) : null}
               </div>
             </div>
-            <p className="mt-2 text-[0.7rem] text-ink-faint">
+            <p className="mt-2 pe-9 text-[0.7rem] text-ink-faint">
               כניסה <Num>{formatMoney(table.buy_in_agorot)}</Num> · מקסימום{' '}
               <Num>{table.max_buy_ins}</Num> כניסות · קוד{' '}
               <Num className="font-bold text-ink-muted">{table.join_code}</Num>
@@ -265,5 +261,72 @@ function TableList({ items }: { items: TableListItem[] }) {
         </Card>
       ))}
     </ul>
+  );
+}
+
+/**
+ * Taking one finished game off your own list.
+ *
+ * Offered only once a game is over. While a table is waiting, being played or
+ * being counted there may still be something for this person to do about it,
+ * and a list they have removed it from is the wrong place to find that out —
+ * the database refuses those too, so this is not the thing keeping them safe.
+ *
+ * Nothing is deleted. The row it writes says one person does not want one
+ * table on one screen; the game, its results and everybody else's list are
+ * untouched.
+ */
+function HideAction({ table }: { table: PokerTableRow }) {
+  const toast = useToast();
+  const [confirming, setConfirming] = useState(false);
+  const [pending, startTransition] = useTransition();
+
+  const hide = () =>
+    startTransition(async () => {
+      const result = await setTableHiddenAction(table.id, true);
+      // The dialog closes either way: a failure is said in the toast, and
+      // leaving it open invites a second tap at something that just refused.
+      setConfirming(false);
+      if (!result.ok) toast.error(result.message);
+      else toast.success('השולחן הוסר מהרשימה שלך');
+    });
+
+  return (
+    <>
+      <button
+        type="button"
+        aria-label={`הסתר מהשולחנות שלי — ${table.name}`}
+        onClick={() => setConfirming(true)}
+        disabled={pending}
+        className="absolute bottom-2 start-2 z-10 grid size-8 place-items-center rounded-lg text-ink-faint transition-colors hover:bg-surface-3 hover:text-ink-muted disabled:opacity-40"
+      >
+        <HideIcon />
+      </button>
+
+      <ConfirmDialog
+        open={confirming}
+        tone="danger"
+        title="הסרת שולחן מהרשימה"
+        message="השולחן יוסר מהתצוגה שלך בלבד. נתוני המשחק, התוצאות והסטטיסטיקות יישמרו."
+        cancelLabel="ביטול"
+        confirmLabel="הסר מהרשימה"
+        loading={pending}
+        onCancel={() => setConfirming(false)}
+        onConfirm={hide}
+      />
+    </>
+  );
+}
+
+function HideIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden focusable="false">
+      <path
+        d="M3 3l18 18M10.6 10.7a2 2 0 002.8 2.8M9.4 5.4A9.6 9.6 0 0112 5c5 0 9 4.5 9 7a11 11 0 01-2.4 3.4M6.2 6.7A11.7 11.7 0 003 12c0 2.5 4 7 9 7a9.3 9.3 0 004-.9"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+    </svg>
   );
 }

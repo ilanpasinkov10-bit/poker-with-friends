@@ -1820,6 +1820,176 @@ begin
 end $$;
 
 \echo ''
+\echo '── hiding a finished game from your own list ──'
+do $$
+declare
+  ilan  uuid := 'a0000000-0000-4000-8000-000000000001';
+  shay  uuid := 'a0000000-0000-4000-8000-000000000002';
+  tbl   uuid;
+  seat  uuid;
+  before_results   int;
+  before_ledger    int;
+  before_profit    bigint;
+  before_settle    int;
+  before_board     jsonb;
+  before_status    public.table_status;
+  plan             jsonb;
+begin
+  -- A finished game both of them played in.
+  perform test_as(ilan);
+  tbl := (public.create_poker_table('ערב להסתרה', current_date, now(), now() + interval '5h',
+            5000, 500, 6, 'AUTO_JOIN', 'OPEN', 'ADMIN_COUNT', true, null)).id;
+  insert into public.table_players (table_id, user_id, display_name, status, approved_at)
+  values (tbl, shay, 'שי', 'ACTIVE', now()) returning id into seat;
+  perform public.internal_add_buyin(seat, 'INITIAL_BUYIN', null, ilan);
+  perform public.set_table_status(tbl, 'ACTIVE');
+
+  -- While it is still being played, neither of them may hide it.
+  perform expect_error(format('select public.hide_table(%L)', tbl),
+    'INVALID_STATUS', 'an active game cannot be hidden');
+  perform test_as(shay);
+  perform expect_error(format('select public.hide_table(%L)', tbl),
+    'INVALID_STATUS', 'not by a player either');
+
+  perform test_as(ilan);
+  perform public.set_table_status(tbl, 'COUNTING');
+  perform expect_error(format('select public.hide_table(%L)', tbl),
+    'INVALID_STATUS', 'nor while the chips are being counted');
+
+  -- Finish it properly, so there is real history to protect.
+  perform public.admin_set_chip_count(
+    (select id from public.table_players where table_id = tbl and user_id = ilan), 700);
+  perform public.admin_set_chip_count(seat, 300);
+  perform public.approve_all_chip_counts(tbl);
+
+  -- The transfer plan, built from the computed balances the same way the app
+  -- builds it.
+  with rows_ as (select * from public.compute_final_rows(tbl, true)),
+       creditors as (select table_player_id, profit_loss_agorot amt from rows_ where profit_loss_agorot > 0),
+       debtors   as (select table_player_id, -profit_loss_agorot amt from rows_ where profit_loss_agorot < 0)
+  select coalesce(jsonb_agg(jsonb_build_object(
+           'from', d.table_player_id, 'to', c.table_player_id,
+           'amount', least(c.amt, d.amt))), '[]'::jsonb)
+    into plan
+    from creditors c, debtors d;
+  perform public.finalize_game(tbl, plan);
+
+  select count(*) into before_results  from public.game_results where table_id = tbl;
+  select count(*) into before_ledger   from public.buyin_transactions where table_id = tbl;
+  select count(*) into before_settle   from public.settlements where table_id = tbl;
+  select sum(profit_loss_agorot) into before_profit from public.game_results where table_id = tbl;
+  select status into before_status from public.poker_tables where id = tbl;
+  before_board := public.get_global_leaderboard();
+  perform expect(before_results = 2 and before_status = 'COMPLETED',
+    'the game is finished, with results for both players');
+
+  -- Now it may be hidden — and only for the person doing it.
+  perform public.hide_table(tbl);
+  perform expect(
+    exists (select 1 from public.hidden_tables where user_id = ilan and table_id = tbl),
+    'a finished game can be taken off your own list');
+  perform expect(
+    not exists (select 1 from public.hidden_tables where user_id = shay and table_id = tbl),
+    'and nobody else is affected by that');
+
+  -- Hiding twice is not an error, and does not make two rows.
+  perform public.hide_table(tbl);
+  perform expect((select count(*) from public.hidden_tables where table_id = tbl) = 1,
+    'hiding a game twice leaves one row, not two');
+
+  -- Nothing about the game changed.
+  perform expect((select count(*) from public.poker_tables where id = tbl) = 1,
+    'the table itself still exists');
+  perform expect((select status from public.poker_tables where id = tbl) = before_status,
+    'its status is untouched');
+  perform expect((select count(*) from public.game_results where table_id = tbl) = before_results,
+    'every game result is still there');
+  perform expect(
+    (select sum(profit_loss_agorot) from public.game_results where table_id = tbl) = before_profit,
+    'and every finalised profit and loss is unchanged');
+  perform expect((select count(*) from public.buyin_transactions where table_id = tbl) = before_ledger,
+    'the buy-in history is unchanged');
+  perform expect((select count(*) from public.settlements where table_id = tbl) = before_settle,
+    'the settlement is unchanged');
+  perform expect(
+    (select count(*) from public.table_players where table_id = tbl) = 2,
+    'both players are still recorded as having played');
+  perform expect(public.get_global_leaderboard() = before_board,
+    'the leaderboard says exactly what it said before');
+
+  -- The share card reads game_results, which is untouched, so it still works.
+  perform expect(
+    (select count(*) from public.game_results where table_id = tbl and display_name is not null) = 2,
+    'the share card still has its finalised rows to draw from');
+
+  -- One person cannot decide what another person sees.
+  perform test_as(shay);
+  set local role authenticated;
+  perform expect_error(
+    format('insert into public.hidden_tables (user_id, table_id) values (%L, %L)', ilan, tbl),
+    'permission denied for table hidden_tables',
+    'a client cannot write a hidden row at all');
+  perform expect_error(
+    format('delete from public.hidden_tables where user_id = %L', ilan),
+    'permission denied for table hidden_tables',
+    'nor delete somebody else''s');
+  -- ...and cannot even see it.
+  perform expect((select count(*) from public.hidden_tables) = 0,
+    'one person cannot see what another has hidden');
+  reset role;
+
+  -- Unhiding is the caller's own, and puts it back.
+  perform public.unhide_table(tbl);
+  perform expect(
+    exists (select 1 from public.hidden_tables where user_id = ilan and table_id = tbl),
+    'unhiding as somebody else changes nothing');
+
+  perform test_as(ilan);
+  set local role authenticated;
+  perform expect((select count(*) from public.hidden_tables) = 1,
+    'and the owner of the row can see their own');
+  reset role;
+
+  perform public.unhide_table(tbl);
+  perform expect(
+    not exists (select 1 from public.hidden_tables where user_id = ilan and table_id = tbl),
+    'putting the game back on the list is just as reversible');
+end $$;
+
+do $$
+declare
+  ilan   uuid := 'a0000000-0000-4000-8000-000000000001';
+  outsider uuid := 'a0000000-0000-4000-8000-000000000006';
+  tbl    uuid;
+begin
+  perform test_as(ilan);
+  tbl := (public.create_poker_table('ערב לביטול', current_date, now(), now() + interval '5h',
+            5000, 500, 6, 'AUTO_JOIN', 'OPEN', 'ADMIN_COUNT', false, null)).id;
+
+  -- A waiting table cannot be hidden either.
+  perform expect_error(format('select public.hide_table(%L)', tbl),
+    'INVALID_STATUS', 'a table that has not started cannot be hidden');
+
+  perform public.set_table_status(tbl, 'CANCELLED');
+  perform public.hide_table(tbl);
+  perform expect(
+    exists (select 1 from public.hidden_tables where user_id = ilan and table_id = tbl),
+    'a cancelled game can be hidden');
+
+  -- The organiser here never took a seat: `admin_plays` was false, so they have
+  -- no table_players row. This is exactly the case a column on that table
+  -- could not have served.
+  perform expect(
+    not exists (select 1 from public.table_players where table_id = tbl and user_id = ilan),
+    'and it works for an organiser who never sat down');
+
+  -- Somebody with no connection to the game cannot hide it.
+  perform test_as(outsider);
+  perform expect_error(format('select public.hide_table(%L)', tbl),
+    'NOT_AUTHORIZED', 'a stranger cannot hide a table they cannot see');
+end $$;
+
+\echo ''
 \echo '── the foreign keys the app embeds through ──'
 do $$
 declare
@@ -1837,7 +2007,8 @@ declare
     'poker_tables_group_id_fkey',
     'poker_tables_owner_id_fkey',
     'friendships_user_a_fkey',
-    'friendships_user_b_fkey'
+    'friendships_user_b_fkey',
+    'hidden_tables_table_id_fkey'
   ];
 begin
   foreach fk in array wanted loop
