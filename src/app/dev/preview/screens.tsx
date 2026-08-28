@@ -29,6 +29,7 @@ import { PlayerCard } from '@/components/table/PlayerCard';
 import { TablesBrowser } from '@/components/tables/TablesBrowser';
 import { FriendsScreen } from '@/components/friends/FriendsScreen';
 import { TableScreen } from '@/components/table/TableScreen';
+import { ShareCardPreview } from './ShareCardPreview';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -55,6 +56,7 @@ import {
   PRIVACY_SETTINGS,
   PROFILE,
   RESULT_ROWS,
+  SHARE_CARD_CASES,
   SETTLEMENT_ROWS,
   makeModel,
   playersWithCounts,
@@ -375,6 +377,17 @@ export const SCREENS: PreviewScreen[] = [
     render: () => (
       <Framed title="פוקר של יום חמישי" subtitle="שלב אחרון">
         <TableScreen model={makeModel({ blinds: 'FINAL' })} />
+      </Framed>
+    ),
+  },
+  {
+    id: 'share-cards',
+    label: 'כרטיסי שיתוף',
+    group: 'משחק חי',
+    note: 'התמונות האמיתיות שנוצרות לשיתוף — לא הדמיה. נבדקים כאן שמות ארוכים, עברית ואנגלית מעורבות, שולחן גדול שלא נכנס למסך אחד, וערב שאף אחד לא יצא בו ברווח.',
+    render: () => (
+      <Framed title="כרטיסי שיתוף" subtitle="סיכום משחק">
+        <ShareCardPreview cases={SHARE_CARD_CASES} />
       </Framed>
     ),
   },

@@ -10,7 +10,6 @@ import {
   defaultSmallBlind,
   describeLevel,
   matchPreset,
-  presetLevels,
   structureProblems,
   type BlindLevel,
   type PresetId,

@@ -579,3 +579,86 @@ export const PROFILE = {
   displayName: 'אילן',
   avatarUrl: AVATARS.ilan,
 };
+
+// ---------------------------------------------------------------------------
+// Share cards. Deliberately awkward: the longest names anyone might type, a
+// table too big for one story, a game where nobody won, and mixed Hebrew and
+// English on the same card.
+// ---------------------------------------------------------------------------
+const SHARE_TABLE = {
+  game_date: '2026-08-28',
+  started_at: '2026-08-28T18:04:00.000Z',
+  completed_at: '2026-08-28T22:36:00.000Z',
+  created_at: '2026-08-28T15:00:00.000Z',
+};
+
+function shareResult(
+  name: string,
+  net: number,
+  buyIns: number,
+  paid: number,
+  index: number,
+): GameResultRow {
+  return {
+    id: `share-${index}`,
+    table_id: TABLE_ID,
+    table_player_id: `share-seat-${index}`,
+    user_id: `share-user-${index}`,
+    display_name: name,
+    buy_in_count: buyIns,
+    total_paid_agorot: paid,
+    chips_issued: buyIns * 500,
+    final_chips: 500,
+    final_value_agorot: paid + net,
+    profit_loss_agorot: net,
+    revision: 1,
+    created_at: '2026-08-28T22:36:00.000Z',
+    updated_at: '2026-08-28T22:36:00.000Z',
+  };
+}
+
+const SHARE_NIGHT: GameResultRow[] = [
+  ['אילן', 54_000, 2, 10_000],
+  ['ליאור', 22_000, 1, 5_000],
+  ['שי', 9_000, 2, 10_000],
+  ['Andy', -15_000, 3, 15_000],
+  ['דניאל', -30_000, 5, 25_000],
+  ['Tom', -40_000, 4, 20_000],
+].map(([n, net, b, p], i) => shareResult(n as string, net as number, b as number, p as number, i));
+
+const SHARE_LONG_NAMES: GameResultRow[] = [
+  ['ירדן בן-אברהם הכהן מירושלים', 41_000, 3, 15_000],
+  ['Alexander Constantinopoulos', 12_000, 1, 5_000],
+  ['אבישי רוזנצוויג', 0, 2, 10_000],
+  ['Christopher Wallace-Fitzgerald', -18_000, 4, 20_000],
+  ['מיכל', -35_000, 6, 30_000],
+].map(([n, net, b, p], i) => shareResult(n as string, net as number, b as number, p as number, i));
+
+const SHARE_BIG_TABLE: GameResultRow[] = Array.from({ length: 14 }, (_, i) =>
+  shareResult(
+    i % 2 === 0 ? `שחקן מספר ${i + 1}` : `Player ${i + 1}`,
+    (7 - i) * 6_000,
+    1 + (i % 4),
+    (1 + (i % 4)) * 5_000,
+    i,
+  ),
+);
+
+const SHARE_NOBODY_WON: GameResultRow[] = [
+  ['אילן', 0, 1, 5_000],
+  ['ליאור', 0, 1, 5_000],
+].map(([n, net, b, p], i) => shareResult(n as string, net as number, b as number, p as number, i));
+
+export const SHARE_CARD_CASES = [
+  { label: 'סיכום קצר', kind: 'QUICK' as const, table: SHARE_TABLE, results: SHARE_NIGHT },
+  { label: 'תוצאות מלאות', kind: 'FULL' as const, table: SHARE_TABLE, results: SHARE_NIGHT },
+  { label: 'שמות ארוכים · מעורב עברית ואנגלית', kind: 'FULL' as const, table: SHARE_TABLE, results: SHARE_LONG_NAMES },
+  { label: 'שולחן גדול — 14 שחקנים', kind: 'FULL' as const, table: SHARE_TABLE, results: SHARE_BIG_TABLE },
+  { label: 'שני שחקנים, אף אחד לא ברווח', kind: 'QUICK' as const, table: SHARE_TABLE, results: SHARE_NOBODY_WON },
+  {
+    label: 'משחק קצר בלי חותמות זמן',
+    kind: 'QUICK' as const,
+    table: { ...SHARE_TABLE, started_at: null, completed_at: null },
+    results: SHARE_NIGHT.slice(0, 3),
+  },
+];
