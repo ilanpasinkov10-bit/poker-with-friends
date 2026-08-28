@@ -14,6 +14,7 @@ import { buyInsWord } from '@/lib/labels';
 import { markSettlementPaidAction } from '@/lib/actions/counting';
 import type { TableViewModel } from '@/lib/data/table';
 import { CorrectResultsDialog } from './CorrectResultsDialog';
+import { ShareSummary } from './ShareSummary';
 
 /** Final results + who transfers money to whom. */
 export function ResultsPanel({ model }: { model: TableViewModel }) {
@@ -105,6 +106,11 @@ export function ResultsPanel({ model }: { model: TableViewModel }) {
       />
 
       <div className="grid gap-2">
+        {/* Only a finished game with frozen results has anything to share.
+            ResultsPanel is rendered for COMPLETED tables only, and the card
+            itself returns null when there are no result rows. */}
+        {results.length > 0 ? <ShareSummary table={table} results={results} /> : null}
+
         <Link
           href={`/table/${table.id}/leaderboard`}
           className="flex h-12 items-center justify-center rounded-xl border border-line bg-surface-2 font-semibold text-ink"
