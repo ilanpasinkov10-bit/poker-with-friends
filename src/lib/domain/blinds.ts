@@ -222,25 +222,62 @@ export const PRESET_MINUTES: Record<Exclude<PresetId, 'CUSTOM'>, number> = {
   TURBO: 10,
 };
 
+/**
+ * The shape of a ladder, written for a 500-chip stack — which is where the
+ * familiar 5/10 comes from. Everything else is this, scaled.
+ */
+const BASE_STACK = 500;
+const BASE_SMALL_BLIND = 5;
 const LADDER: ReadonlyArray<readonly [number, number]> = [
   [5, 10], [10, 25], [25, 50], [50, 100], [100, 200], [200, 400], [300, 600], [500, 1000],
 ];
 
-/** The structure a preset fills the editor with. */
-export function presetLevels(preset: Exclude<PresetId, 'CUSTOM'>): BlindLevel[] {
-  const minutes = PRESET_MINUTES[preset];
-  return LADDER.map(([smallBlind, bigBlind]) => ({
-    kind: 'BLINDS' as const,
-    smallBlind,
-    bigBlind,
-    minutes,
-  }));
+/**
+ * The small blind a table should open at, from what each player is given.
+ *
+ * One per cent of the starting stack, with the big blind at two — the ratio
+ * that makes a stack worth fifty big blinds, which is where a game of this
+ * length wants to start. A table handing out 500 chips opens at 5/10 as it
+ * always did; one handing out 5,000 opens at 50/100 rather than at blinds
+ * worth a five-hundredth of the stack, where the first hour means nothing.
+ */
+export function defaultSmallBlind(startingChips: number): number {
+  const chips = Number.isFinite(startingChips) && startingChips > 0 ? startingChips : BASE_STACK;
+  return Math.max(1, Math.round(chips / 100));
 }
 
-/** Which preset a structure looks like, for showing the choice back. */
-export function matchPreset(levels: BlindLevel[]): PresetId {
+/**
+ * The structure a preset fills the editor with, scaled to the stack.
+ *
+ * The preset decides the pace; the stack decides the numbers. Both stay
+ * editable afterwards — this is a starting point, never a lock.
+ */
+export function presetLevels(
+  preset: Exclude<PresetId, 'CUSTOM'>,
+  startingChips: number,
+): BlindLevel[] {
+  const minutes = PRESET_MINUTES[preset];
+  const scale = defaultSmallBlind(startingChips) / BASE_SMALL_BLIND;
+
+  let previousSmall = 0;
+  return LADDER.map(([small, big]) => {
+    // Rounding a scaled ladder must not produce a level that goes backwards or
+    // one where the big blind has caught up with the small.
+    const smallBlind = Math.max(1, previousSmall, Math.round(small * scale));
+    const bigBlind = Math.max(smallBlind + 1, Math.round(big * scale));
+    previousSmall = smallBlind;
+    return { kind: 'BLINDS' as const, smallBlind, bigBlind, minutes };
+  });
+}
+
+/**
+ * Which preset a structure looks like, for showing the choice back.
+ *
+ * Needs the stack, because what "רגיל" looks like depends on it.
+ */
+export function matchPreset(levels: BlindLevel[], startingChips: number): PresetId {
   for (const id of ['RELAXED', 'STANDARD', 'TURBO'] as const) {
-    const preset = presetLevels(id);
+    const preset = presetLevels(id, startingChips);
     if (preset.length !== levels.length) continue;
     if (preset.every((level, i) => sameLevel(level, levels[i]!))) return id;
   }

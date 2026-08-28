@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   at,
+  defaultSmallBlind,
   describeLevel,
   formatClock,
   matchPreset,
@@ -249,17 +250,80 @@ describe('validating a structure', () => {
 
 describe('presets', () => {
   it('fill in a structure at the pace they promise', () => {
-    expect(presetLevels('TURBO').every((l) => l.minutes === 10)).toBe(true);
-    expect(presetLevels('STANDARD').every((l) => l.minutes === 20)).toBe(true);
-    expect(presetLevels('RELAXED').every((l) => l.minutes === 30)).toBe(true);
-    expect(structureProblems(presetLevels('STANDARD'))).toEqual([]);
+    expect(presetLevels('TURBO', 500).every((l) => l.minutes === 10)).toBe(true);
+    expect(presetLevels('STANDARD', 500).every((l) => l.minutes === 20)).toBe(true);
+    expect(presetLevels('RELAXED', 500).every((l) => l.minutes === 30)).toBe(true);
+    expect(structureProblems(presetLevels('STANDARD', 500))).toEqual([]);
   });
 
   it('are recognised again, and a touched structure reads as custom', () => {
-    expect(matchPreset(presetLevels('TURBO'))).toBe('TURBO');
-    const edited = presetLevels('TURBO');
+    expect(matchPreset(presetLevels('TURBO', 500), 500)).toBe('TURBO');
+    const edited = presetLevels('TURBO', 500);
     edited[0] = { kind: 'BLINDS', smallBlind: 1, bigBlind: 2, minutes: 10 };
-    expect(matchPreset(edited)).toBe('CUSTOM');
+    expect(matchPreset(edited, 500)).toBe('CUSTOM');
+  });
+
+  it('are recognised against the stack they were generated for', () => {
+    // The same ladder is "רגיל" for one stack and something else for another,
+    // so the stack has to be part of the question.
+    expect(matchPreset(presetLevels('STANDARD', 5000), 5000)).toBe('STANDARD');
+    expect(matchPreset(presetLevels('STANDARD', 5000), 500)).toBe('CUSTOM');
+  });
+});
+
+describe('opening blinds from the starting stack', () => {
+  it('opens at one and two per cent of what a player is given', () => {
+    for (const [chips, small, big] of [
+      [500, 5, 10],
+      [1000, 10, 20],
+      [2500, 25, 50],
+      [5000, 50, 100],
+      [10_000, 100, 200],
+    ] as const) {
+      expect(defaultSmallBlind(chips)).toBe(small);
+      const first = presetLevels('STANDARD', chips)[0]!;
+      expect(first.kind === 'BLINDS' && first.smallBlind).toBe(small);
+      expect(first.kind === 'BLINDS' && first.bigBlind).toBe(big);
+    }
+  });
+
+  it('scales the whole ladder, not only the first level', () => {
+    // The shape a 500-chip game has, ten times over.
+    const small = presetLevels('STANDARD', 500).map((l) => describeLevel(l));
+    const big = presetLevels('STANDARD', 5000).map((l) => describeLevel(l));
+    expect(small.slice(0, 5)).toEqual(['5 / 10', '10 / 25', '25 / 50', '50 / 100', '100 / 200']);
+    expect(big.slice(0, 5)).toEqual([
+      '50 / 100', '100 / 250', '250 / 500', '500 / 1000', '1000 / 2000',
+    ]);
+  });
+
+  it('stays a valid, rising ladder at awkward stack sizes', () => {
+    for (const chips of [1, 7, 60, 333, 750, 1234, 99_999]) {
+      const levels = presetLevels('STANDARD', chips);
+      expect(structureProblems(levels)).toEqual([]);
+      for (const [i, level] of levels.entries()) {
+        if (level.kind !== 'BLINDS') continue;
+        expect(level.bigBlind).toBeGreaterThan(level.smallBlind);
+        const previous = levels[i - 1];
+        if (previous?.kind === 'BLINDS') {
+          expect(level.smallBlind).toBeGreaterThanOrEqual(previous.smallBlind);
+        }
+      }
+    }
+  });
+
+  it('falls back to the familiar 5/10 when the stack is not a usable number', () => {
+    // The field is a text input: it is empty, or mid-typing, more often than not.
+    for (const chips of [0, -100, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(defaultSmallBlind(chips)).toBe(5);
+    }
+  });
+
+  it('keeps the pace the manager picked when the stack changes', () => {
+    // Regenerating for a new stack must not silently move them off טורבו.
+    const turbo = presetLevels('TURBO', 5000);
+    expect(turbo.every((l) => l.minutes === 10)).toBe(true);
+    expect(matchPreset(turbo, 5000)).toBe('TURBO');
   });
 });
 
