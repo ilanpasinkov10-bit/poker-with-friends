@@ -1623,6 +1623,198 @@ begin
 end $$;
 
 \echo ''
+\echo '── blind levels and the timer that walks them ──'
+do $$
+declare
+  ilan   uuid := 'a0000000-0000-4000-8000-000000000001';
+  shay   uuid := 'a0000000-0000-4000-8000-000000000002';
+  tbl    uuid;
+  ladder jsonb := jsonb_build_array(
+    jsonb_build_object('kind','BLINDS','small_blind',5, 'big_blind',10, 'minutes',20),
+    jsonb_build_object('kind','BLINDS','small_blind',10,'big_blind',25, 'minutes',20),
+    jsonb_build_object('kind','BREAK', 'minutes',10),
+    jsonb_build_object('kind','BLINDS','small_blind',25,'big_blind',50, 'minutes',20));
+  t      public.poker_tables;
+  eff    record;
+begin
+  perform test_as(ilan);
+  tbl := (public.create_poker_table('ערב בליינדים', current_date, now(), now() + interval '5h',
+            5000, 500, 6, 'AUTO_JOIN', 'OPEN', 'ADMIN_COUNT', true, null)).id;
+
+  -- A table is created with the timer off, and behaves exactly as before.
+  select * into t from public.poker_tables where id = tbl;
+  perform expect(t.blind_status = 'DISABLED' and t.blind_levels = '[]'::jsonb,
+    'a new table has no blind timer');
+
+  -- Only the manager may configure it.
+  perform test_as(shay);
+  perform expect_error(format('select public.set_blind_structure(%L, %L::jsonb)', tbl, ladder),
+    'NOT_AUTHORIZED', 'a player cannot configure the blind structure');
+
+  -- The structure is validated in the database, not only in the form.
+  perform test_as(ilan);
+  perform expect_error(format('select public.set_blind_structure(%L, %L::jsonb)', tbl,
+      jsonb_build_array(jsonb_build_object('kind','BLINDS','small_blind',50,'big_blind',10,'minutes',20),
+                        jsonb_build_object('kind','BLINDS','small_blind',10,'big_blind',25,'minutes',20))),
+    'INVALID_BLIND_STRUCTURE', 'the big blind must be larger than the small one');
+  perform expect_error(format('select public.set_blind_structure(%L, %L::jsonb)', tbl,
+      jsonb_build_array(jsonb_build_object('kind','BLINDS','small_blind',5,'big_blind',10,'minutes',0),
+                        jsonb_build_object('kind','BLINDS','small_blind',10,'big_blind',25,'minutes',20))),
+    'INVALID_BLIND_STRUCTURE', 'a level must last longer than zero minutes');
+  perform expect_error(format('select public.set_blind_structure(%L, %L::jsonb)', tbl,
+      jsonb_build_array(jsonb_build_object('kind','BLINDS','small_blind',5,'big_blind',10,'minutes',20))),
+    'INVALID_BLIND_STRUCTURE', 'one level is not a blind structure');
+
+  perform public.set_blind_structure(tbl, ladder);
+  select * into t from public.poker_tables where id = tbl;
+  perform expect(t.blind_status = 'READY' and jsonb_array_length(t.blind_levels) = 4,
+    'the manager configures the ladder before the game starts');
+
+  -- Configured is not running: the countdown waits for the game to start.
+  perform expect(t.blind_level_started_at is null,
+    'configuring the ladder does not start the clock');
+
+  -- Starting the game starts level one, in the same statement.
+  perform public.set_table_status(tbl, 'ACTIVE');
+  select * into t from public.poker_tables where id = tbl;
+  perform expect(t.blind_status = 'RUNNING' and t.blind_level_index = 0
+                 and t.blind_level_started_at is not null,
+    'starting the game starts the blind timer at level one');
+
+  -- ...and the clock starts then, not when the table was made.
+  perform expect(t.blind_level_started_at >= t.started_at,
+    'level one begins when the game begins');
+
+  select * into eff from public.internal_blind_effective(t);
+  perform expect(eff.level_index = 0, 'the level in play is level one');
+
+  -- Automatic advancement is derived, not written: rewind the anchor and the
+  -- level in play moves on its own, with nothing having touched the row.
+  update public.poker_tables set blind_level_started_at = now() - interval '45 minutes'
+   where id = tbl;
+  select * into t from public.poker_tables where id = tbl;
+  select * into eff from public.internal_blind_effective(t);
+  perform expect(eff.level_index = 2,
+    'a level that has run out advances with no write and no cron job');
+  perform expect(t.blind_level_index = 0,
+    'and the stored anchor is untouched by that advance');
+
+  -- The last level is where it stops. It does not invent another.
+  update public.poker_tables set blind_level_started_at = now() - interval '20 hours'
+   where id = tbl;
+  select * into t from public.poker_tables where id = tbl;
+  select * into eff from public.internal_blind_effective(t);
+  perform expect(eff.level_index = 3, 'the final level is the last word');
+
+  -- Pause freezes the remaining time exactly.
+  update public.poker_tables
+     set blind_level_index = 0, blind_level_started_at = now() - interval '12 minutes 28 seconds'
+   where id = tbl;
+  perform test_as(shay);
+  perform expect_error(format('select public.pause_blind_timer(%L)', tbl),
+    'NOT_AUTHORIZED', 'a player cannot pause the blind timer');
+  perform test_as(ilan);
+  perform public.pause_blind_timer(tbl);
+  select * into t from public.poker_tables where id = tbl;
+  perform expect(t.blind_status = 'PAUSED' and t.blind_paused_at is not null,
+    'the manager pauses the timer');
+
+  select * into eff from public.internal_blind_effective(t);
+  perform expect(eff.elapsed_in_level between interval '12 minutes 27 seconds'
+                                          and interval '12 minutes 30 seconds',
+    'pausing records how far into the level the game had got');
+
+  -- A paused clock does not move, however long it is left.
+  update public.poker_tables set blind_paused_at = blind_paused_at - interval '10 minutes',
+                                 blind_level_started_at = blind_level_started_at - interval '10 minutes'
+   where id = tbl;
+  select * into t from public.poker_tables where id = tbl;
+  select * into eff from public.internal_blind_effective(t);
+  perform expect(eff.elapsed_in_level between interval '12 minutes 27 seconds'
+                                          and interval '12 minutes 30 seconds',
+    'ten minutes paused changes nothing');
+
+  -- Resume picks up from where it stopped, not from where the level started.
+  perform public.resume_blind_timer(tbl);
+  select * into t from public.poker_tables where id = tbl;
+  select * into eff from public.internal_blind_effective(t);
+  perform expect(t.blind_status = 'RUNNING' and t.blind_paused_at is null,
+    'the manager resumes the timer');
+  perform expect(eff.elapsed_in_level between interval '12 minutes 27 seconds'
+                                          and interval '12 minutes 31 seconds',
+    'resuming continues from the time that was left, not from the beginning');
+
+  -- Stepping.
+  perform test_as(shay);
+  perform expect_error(format('select public.step_blind_level(%L, 1)', tbl),
+    'NOT_AUTHORIZED', 'a player cannot change the blind level');
+  perform test_as(ilan);
+  perform expect(public.step_blind_level(tbl, 1) = 1, 'the manager advances a level');
+  perform expect(public.step_blind_level(tbl, -1) = 0, 'and can go back one');
+  perform expect_error(format('select public.step_blind_level(%L, -1)', tbl),
+    'NO_SUCH_BLIND_LEVEL', 'there is nothing before level one');
+
+  select * into t from public.poker_tables where id = tbl;
+  perform expect(t.blind_level_started_at > now() - interval '5 seconds',
+    'a step restarts that level''s countdown');
+
+  -- The structure cannot be rewritten under a running clock.
+  perform expect_error(format('select public.set_blind_structure(%L, %L::jsonb)', tbl, ladder),
+    'GAME_ALREADY_STARTED', 'the ladder cannot be rewritten mid-game');
+
+  -- Counting stops the timer without anything having to stop it.
+  perform public.set_table_status(tbl, 'COUNTING');
+  select * into t from public.poker_tables where id = tbl;
+  perform expect(t.status = 'COUNTING' and t.blind_status = 'RUNNING',
+    'the stored status is left alone when the game leaves play');
+  perform expect_error(format('select public.pause_blind_timer(%L)', tbl),
+    'INVALID_STATUS', 'and the timer can no longer be controlled');
+
+  -- Explicitly stopping it.
+  perform public.set_table_status(tbl, 'ACTIVE');
+  perform public.stop_blind_timer(tbl);
+  select * into t from public.poker_tables where id = tbl;
+  perform expect(t.blind_status = 'STOPPED' and t.blind_level_started_at is null,
+    'the manager stops the timer for good');
+  perform expect_error(format('select public.pause_blind_timer(%L)', tbl),
+    'BLIND_TIMER_NOT_RUNNING', 'a stopped timer cannot be paused');
+
+  perform public.set_table_status(tbl, 'CANCELLED');
+end $$;
+
+do $$
+declare
+  ilan uuid := 'a0000000-0000-4000-8000-000000000001';
+  tbl  uuid;
+  t    public.poker_tables;
+begin
+  perform test_as(ilan);
+  tbl := (public.create_poker_table('ערב בלי בליינדים', current_date, now(), now() + interval '5h',
+            5000, 500, 6, 'AUTO_JOIN', 'OPEN', 'ADMIN_COUNT', true, null)).id;
+
+  -- A table that never configured a timer starts and runs exactly as before.
+  perform public.set_table_status(tbl, 'ACTIVE');
+  select * into t from public.poker_tables where id = tbl;
+  perform expect(t.status = 'ACTIVE' and t.blind_status = 'DISABLED'
+                 and t.blind_level_started_at is null,
+    'a game with no blind timer is completely unaffected by it');
+  perform expect_error(format('select public.pause_blind_timer(%L)', tbl),
+    'BLIND_TIMER_NOT_RUNNING', 'and has no timer to control');
+  perform public.set_table_status(tbl, 'CANCELLED');
+end $$;
+
+do $$
+begin
+  -- Clients read the timer with the table row and may not write it at all.
+  set local role authenticated;
+  perform expect_error(
+    'update public.poker_tables set blind_status = ''RUNNING''',
+    'permission denied for table poker_tables',
+    'a client cannot write the blind timer directly');
+  reset role;
+end $$;
+
+\echo ''
 \echo '── the foreign keys the app embeds through ──'
 do $$
 declare

@@ -40,10 +40,11 @@ import type { TableEventKind } from '@/lib/domain/events';
  */
 type Ctor = new () => AudioContext;
 
-export type SoundName = Extract<
-  TableEventKind,
-  'PLAYER_JOINED' | 'PLAYER_LEFT' | 'BUY_IN' | 'GAME_STARTED'
->;
+export type SoundName =
+  | Extract<TableEventKind, 'PLAYER_JOINED' | 'PLAYER_LEFT' | 'BUY_IN' | 'GAME_STARTED'>
+  // Not a table event: nothing is written when a blind level turns over, so
+  // there is no row for one to be derived from. See src/lib/domain/blinds.ts.
+  | 'BLINDS_UP';
 
 type Ctx = AudioContext & { __pwfMaster?: GainNode };
 
@@ -204,6 +205,15 @@ const CUES: Record<SoundName, (ctx: Ctx, t: number) => void> = {
       noise(ctx, at, 0.03, { type: 'highpass', frequency: 1800, q: 0.7, gain: 0.22 });
     }
     noise(ctx, t + 0.3, 0.1, { type: 'lowpass', frequency: 700, q: 1, gain: 0.35 });
+  },
+
+  // The blinds going up: a rising three-note figure, clear enough to be heard
+  // across a table without being an alarm. It says "look up", not "stop".
+  BLINDS_UP: (ctx, t) => {
+    for (const [i, from] of [523.25, 659.25, 783.99].entries()) {
+      tone(ctx, t + i * 0.11, { from, duration: 0.19, gain: 0.11, type: 'triangle' });
+    }
+    tone(ctx, t + 0.33, { from: 1046.5, duration: 0.3, gain: 0.08, type: 'sine' });
   },
 };
 

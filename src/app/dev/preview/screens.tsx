@@ -313,6 +313,72 @@ export const SCREENS: PreviewScreen[] = [
     ),
   },
   {
+    id: 'blinds-running',
+    label: 'בליינדים — רץ',
+    group: 'משחק חי',
+    note: 'הטיימר המשותף. כל השחקנים רואים אותו; רק המנהל רואה את הכפתורים. הספירה מחושבת מהחותמת שנשמרה, לא נספרת בדפדפן — לכן היא נכונה גם אחרי שסוגרים את האפליקציה וחוזרים.',
+    render: () => (
+      <Framed title="פוקר של יום חמישי" subtitle="בליינדים">
+        <TableScreen model={makeModel({ blinds: 'RUNNING' })} />
+      </Framed>
+    ),
+  },
+  {
+    id: 'blinds-player',
+    label: 'בליינדים — שחקן',
+    group: 'משחק חי',
+    note: 'אותו טיימר כפי שהוא נראה לשחקן: אותם נתונים בדיוק, בלי כפתורי ניהול.',
+    render: () => (
+      <Framed title="פוקר של יום חמישי" subtitle="בליינדים">
+        <TableScreen model={makeModel({ blinds: 'RUNNING', asAdmin: false })} />
+      </Framed>
+    ),
+  },
+  {
+    id: 'blinds-urgent',
+    label: 'בליינדים — לקראת עלייה',
+    group: 'משחק חי',
+    note: 'פחות מדקה לעלייה. הצבע מתחלף, בלי אנימציה שתסיח את הדעת מהמשחק.',
+    render: () => (
+      <Framed title="פוקר של יום חמישי" subtitle="עוד רגע עולים">
+        <TableScreen model={makeModel({ blinds: 'URGENT' })} />
+      </Framed>
+    ),
+  },
+  {
+    id: 'blinds-break',
+    label: 'בליינדים — הפסקה',
+    group: 'משחק חי',
+    note: 'שלב הפסקה. כשהוא נגמר המשחק ממשיך לשלב הבא מעצמו — אף אחד לא צריך ללחוץ על כלום.',
+    render: () => (
+      <Framed title="פוקר של יום חמישי" subtitle="הפסקה">
+        <TableScreen model={makeModel({ blinds: 'BREAK' })} />
+      </Framed>
+    ),
+  },
+  {
+    id: 'blinds-paused',
+    label: 'בליינדים — מושהה',
+    group: 'משחק חי',
+    note: 'המנהל השהה. השעון קפוא על הזמן שנשאר, ויימשך בדיוק ממנו — גם אם רועננו את הדף באמצע.',
+    render: () => (
+      <Framed title="פוקר של יום חמישי" subtitle="מושהה">
+        <TableScreen model={makeModel({ blinds: 'PAUSED' })} />
+      </Framed>
+    ),
+  },
+  {
+    id: 'blinds-final',
+    label: 'בליינדים — שלב אחרון',
+    group: 'משחק חי',
+    note: 'השלב האחרון שהוגדר. הבליינדים נשארים בו — האפליקציה לא ממציאה שלב שלא הוגדר.',
+    render: () => (
+      <Framed title="פוקר של יום חמישי" subtitle="שלב אחרון">
+        <TableScreen model={makeModel({ blinds: 'FINAL' })} />
+      </Framed>
+    ),
+  },
+  {
     id: 'qr-join',
     label: 'שיתוף וקוד QR',
     group: 'משחק חי',

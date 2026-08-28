@@ -207,6 +207,11 @@ export function makeTable(overrides: Partial<PokerTableRow> = {}): PokerTableRow
     counting_started_at: null,
     completed_at: null,
     ending_soon_notified_at: null,
+    blind_levels: [],
+    blind_status: 'DISABLED',
+    blind_level_index: 0,
+    blind_level_started_at: null,
+    blind_paused_at: null,
     created_at: '2026-08-23T15:00:00.000Z',
     updated_at: '2026-08-23T18:04:00.000Z',
     ...overrides,
@@ -290,6 +295,32 @@ export interface ModelOptions {
   countingMode?: 'ADMIN_COUNT' | 'SELF_COUNT';
   results?: GameResultRow[];
   settlements?: SettlementRow[];
+  /** Which blind-timer situation to show, or nothing for a table without one. */
+  blinds?: 'RUNNING' | 'URGENT' | 'BREAK' | 'PAUSED' | 'FINAL';
+}
+
+/**
+ * A blind ladder anchored relative to now, so the gallery shows a clock that
+ * is actually counting rather than one frozen at a fixed date.
+ */
+function blindFixture(
+  blinds: 'RUNNING' | 'URGENT' | 'BREAK' | 'PAUSED' | 'FINAL' | undefined,
+): Partial<PokerTableRow> {
+  if (!blinds) return {};
+  const levels = [
+    { kind: 'BLINDS', small_blind: 5, big_blind: 10, minutes: 20 },
+    { kind: 'BLINDS', small_blind: 10, big_blind: 25, minutes: 20 },
+    { kind: 'BREAK', minutes: 10 },
+    { kind: 'BLINDS', small_blind: 25, big_blind: 50, minutes: 20 },
+  ];
+  const minutesIn = { RUNNING: 8, URGENT: 19.3, BREAK: 41, PAUSED: 12, FINAL: 55 }[blinds];
+  return {
+    blind_levels: levels,
+    blind_status: blinds === 'PAUSED' ? 'PAUSED' : 'RUNNING',
+    blind_level_index: 0,
+    blind_level_started_at: new Date(Date.now() - minutesIn * 60_000).toISOString(),
+    blind_paused_at: blinds === 'PAUSED' ? new Date().toISOString() : null,
+  };
 }
 
 export function makeModel(options: ModelOptions = {}): TableViewModel {
@@ -307,6 +338,7 @@ export function makeModel(options: ModelOptions = {}): TableViewModel {
     countingMode = 'ADMIN_COUNT',
     results = [],
     settlements = [],
+    blinds,
   } = options;
 
   const table = makeTable({
@@ -318,6 +350,7 @@ export function makeModel(options: ModelOptions = {}): TableViewModel {
     started_at: status === 'WAITING' ? null : '2026-08-23T18:04:00.000Z',
     counting_started_at: status === 'COUNTING' ? '2026-08-23T21:30:00.000Z' : null,
     completed_at: status === 'COMPLETED' ? '2026-08-23T21:55:00.000Z' : null,
+    ...blindFixture(blinds),
   });
 
   const viewer = players.find((p) => p.id === viewerSeatId) ?? null;

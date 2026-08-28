@@ -5,6 +5,8 @@ import { useState, useTransition } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Field, OptionGroup, Switch, TextInput } from '@/components/ui/Field';
+import { BlindLevelsEditor } from './BlindLevelsEditor';
+import { structureProblems, type BlindLevel } from '@/lib/domain/blinds';
 import { Num } from '@/components/ui/Num';
 import { useToast } from '@/components/ui/Toast';
 import { createTableAction } from '@/lib/actions/tables';
@@ -52,6 +54,10 @@ export function CreateTableForm({
   const [visibility, setVisibility] = useState<PlayerVisibility>('OPEN');
   const [countingMode, setCountingMode] = useState<CountingMode>('ADMIN_COUNT');
   const [adminPlays, setAdminPlays] = useState(true);
+  // Off by default: a table that does not switch this on is created exactly as
+  // it always was, with no blind structure at all.
+  const [blindsEnabled, setBlindsEnabled] = useState(false);
+  const [blindLevels, setBlindLevels] = useState<BlindLevel[]>([]);
 
   const buyInNumber = Number(buyIn);
   const chipsNumber = Number(chips);
@@ -60,6 +66,11 @@ export function CreateTableForm({
     Number.isFinite(buyInNumber) && Number.isFinite(maxNumber)
       ? Math.round(buyInNumber * maxNumber * 100)
       : 0;
+
+  // The table is created before the ladder is written, so a structure that
+  // would be refused must stop the submit rather than leave a table behind
+  // with no blinds on it.
+  const blindProblems = blindsEnabled ? structureProblems(blindLevels) : [];
 
   return (
     <form
@@ -81,6 +92,7 @@ export function CreateTableForm({
             countingMode,
             adminPlays,
             groupName: groupName.trim() || undefined,
+            blindLevels: blindsEnabled ? blindLevels : undefined,
           });
           if (!result.ok) {
             setError(result.message);
@@ -288,6 +300,13 @@ export function CreateTableForm({
           label="אני גם משחק"
           description="ניצור לכם כרטיס שחקן בשולחן, בנוסף לניהול"
         />
+
+        <BlindLevelsEditor
+          enabled={blindsEnabled}
+          onEnabledChange={setBlindsEnabled}
+          levels={blindLevels}
+          onLevelsChange={setBlindLevels}
+        />
       </Card>
 
       {error ? (
@@ -296,7 +315,7 @@ export function CreateTableForm({
         </p>
       ) : null}
 
-      <Button type="submit" size="lg" block loading={pending}>
+      <Button type="submit" size="lg" block loading={pending} disabled={blindProblems.length > 0}>
         פתח שולחן
       </Button>
     </form>

@@ -3,6 +3,8 @@
  * changes (or regenerate with `supabase gen types typescript`).
  */
 
+export type BlindTimerStatusValue = 'DISABLED' | 'READY' | 'RUNNING' | 'PAUSED' | 'STOPPED';
+
 export type TableStatus = 'WAITING' | 'ACTIVE' | 'COUNTING' | 'COMPLETED' | 'CANCELLED';
 export type JoinMode = 'AUTO_JOIN' | 'ADMIN_APPROVAL';
 export type PlayerVisibility = 'OPEN' | 'PRIVATE';
@@ -92,6 +94,15 @@ export type PokerTableRow = {
   completed_at: string | null;
   /** Set once the "one hour to go" reminder has been sent, so it fires once. */
   ending_soon_notified_at: string | null;
+  /**
+   * Optional automatic blind increases (migration 0015). A structure and an
+   * anchor — never a countdown; the remaining time is derived from these.
+   */
+  blind_levels: unknown;
+  blind_status: BlindTimerStatusValue;
+  blind_level_index: number;
+  blind_level_started_at: string | null;
+  blind_paused_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -332,6 +343,11 @@ export type Database = {
       admin_add_buyin: { Args: { p_table_player: string }; Returns: undefined };
       reverse_buyin: { Args: { p_transaction: string; p_note?: string | null }; Returns: undefined };
       set_table_status: { Args: { p_table: string; p_status: string }; Returns: undefined };
+      set_blind_structure: { Args: { p_table: string; p_levels: unknown }; Returns: undefined };
+      pause_blind_timer: { Args: { p_table: string }; Returns: undefined };
+      resume_blind_timer: { Args: { p_table: string }; Returns: undefined };
+      step_blind_level: { Args: { p_table: string; p_direction: number }; Returns: number };
+      stop_blind_timer: { Args: { p_table: string }; Returns: undefined };
       extend_game: {
         Args: { p_table: string; p_minutes?: number | null; p_new_end?: string | null };
         Returns: string;
@@ -374,6 +390,7 @@ export type Database = {
     };
     Enums: {
       table_status: TableStatus;
+      blind_timer_status: BlindTimerStatusValue;
       join_mode: JoinMode;
       player_visibility: PlayerVisibility;
       counting_mode: CountingMode;

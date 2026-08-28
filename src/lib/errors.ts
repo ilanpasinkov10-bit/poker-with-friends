@@ -49,6 +49,11 @@ const MESSAGES: Record<string, string> = {
   FRIEND_REQUEST_NOT_FOUND: 'בקשת החברות לא נמצאה',
   NOT_FRIENDS: 'אתם לא חברים',
   GUEST_CANNOT_FRIEND: 'חברויות זמינות רק לחשבונות רשומים',
+
+  // Blind levels.
+  INVALID_BLIND_STRUCTURE: 'מבנה הבליינדים אינו תקין. בדקו את הסכומים ואת משך השלבים.',
+  BLIND_TIMER_NOT_RUNNING: 'טיימר הבליינדים אינו פעיל בשולחן הזה',
+  NO_SUCH_BLIND_LEVEL: 'אין שלב בליינדים נוסף בכיוון הזה',
   TARGET_IS_GUEST: 'אפשר להוסיף כחברים רק חשבונות רשומים',
 
   // Leaving a table. Each has its own code so a failure names its own cause in

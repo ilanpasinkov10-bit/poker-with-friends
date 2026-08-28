@@ -14,6 +14,7 @@ import { useTableAlerts } from '@/lib/hooks/useTableAlerts';
 import { TABLE_STATUS_LABEL, TABLE_STATUS_TONE, playersWord } from '@/lib/labels';
 import type { TableViewModel } from '@/lib/data/table';
 import { AdminPlayerActions } from './AdminPlayerActions';
+import { BlindTimer } from './BlindTimer';
 import { LivePot } from './LivePot';
 import { Countdown } from './Countdown';
 import { CountingPanel } from './CountingPanel';
@@ -113,6 +114,13 @@ function LiveSection({ model }: { model: TableViewModel }) {
       <Card>
         <Countdown endAt={table.planned_end_at} />
       </Card>
+
+      {/* Renders nothing at all for a table with no blind timer configured. */}
+      <BlindTimer
+        table={table}
+        isAdmin={viewer.isAdmin}
+        soundsEnabled={viewer.soundsEnabled}
+      />
 
       {model.canSeeEveryonesMoney ? <LivePot model={model} /> : null}
 
