@@ -127,13 +127,17 @@ export async function loadPrivacySettings(userId: string): Promise<ProfilePrivac
  * not by a filter here. The id only says which of them the viewer runs, which
  * is `summariseMyTables`' job, so this can start before the session check has
  * finished.
+ *
+ * The same is true of the tables this person has hidden: the policy on
+ * `hidden_tables` returns only their own rows, so embedding it answers "have I
+ * hidden this one" without a second query and without a user id in the filter.
  */
 export async function loadMyTables(): Promise<TableWithSeats[]> {
   const supabase = await createClient();
 
   const { data } = await supabase
     .from('poker_tables')
-    .select('*, table_players(status)')
+    .select('*, table_players(status), hidden_tables(hidden_at)')
     .order('planned_start_at', { ascending: false })
     .limit(100);
 

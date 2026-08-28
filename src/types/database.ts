@@ -35,6 +35,13 @@ export type ProfilePrivacyRow = {
   updated_at: string;
 }
 
+/** One row per person who has taken one table off their own list. */
+export type HiddenTableRow = {
+  user_id: string;
+  table_id: string;
+  hidden_at: string;
+}
+
 export type FriendshipStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED';
 
 /**
@@ -299,6 +306,10 @@ export type Database = {
       >;
       game_corrections: ReadOnly<GameCorrectionRow>;
       saved_players: Writable<SavedPlayerRow>;
+      hidden_tables: ReadOnly<
+        HiddenTableRow,
+        [Rel<'hidden_tables_table_id_fkey', 'table_id', 'poker_tables'>]
+      >;
       friendships: ReadOnly<
         FriendshipRow,
         [
@@ -343,6 +354,8 @@ export type Database = {
       admin_add_buyin: { Args: { p_table_player: string }; Returns: undefined };
       reverse_buyin: { Args: { p_transaction: string; p_note?: string | null }; Returns: undefined };
       set_table_status: { Args: { p_table: string; p_status: string }; Returns: undefined };
+      hide_table: { Args: { p_table: string }; Returns: undefined };
+      unhide_table: { Args: { p_table: string }; Returns: undefined };
       set_blind_structure: { Args: { p_table: string; p_levels: unknown }; Returns: undefined };
       pause_blind_timer: { Args: { p_table: string }; Returns: undefined };
       resume_blind_timer: { Args: { p_table: string }; Returns: undefined };

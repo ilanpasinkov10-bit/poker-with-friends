@@ -498,17 +498,56 @@ function daysBefore(days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-export const MY_TABLES: TableListItem[] = TABLE_LIST_SPECS.map((spec, index) => ({
-  table: makeTable({
-    id: `table-${index}`,
-    name: spec.name,
-    status: spec.status,
-    game_date: daysBefore(spec.daysAgo),
-    join_code: `PW${1000 + index}`,
-  }),
-  role: spec.role,
-  playerCount: 3 + (index % 4),
-}));
+/**
+ * The lifecycle timestamps each section sorts by, set from how long ago the
+ * game was — so the gallery shows a real ordering rather than an arbitrary one.
+ */
+function lifecycleTimes(status: TableStatus, daysAgo: number): Partial<PokerTableRow> {
+  const at = (hoursAfterMidnight: number) =>
+    new Date(Date.now() - daysAgo * 86_400_000 + hoursAfterMidnight * 3_600_000).toISOString();
+  if (status === 'WAITING') return { planned_start_at: at(20) };
+  if (status === 'ACTIVE') return { planned_start_at: at(20), started_at: at(20.2) };
+  if (status === 'COUNTING') {
+    return { planned_start_at: at(20), started_at: at(20.2), counting_started_at: at(23.5) };
+  }
+  if (status === 'COMPLETED') {
+    return { planned_start_at: at(20), started_at: at(20.2), completed_at: at(23.9) };
+  }
+  return { planned_start_at: at(20), updated_at: at(21) };
+}
+
+function listItem(
+  spec: { name: string; status: TableStatus; daysAgo: number; role: 'ADMIN' | 'PLAYER' },
+  index: number,
+): TableListItem {
+  return {
+    table: makeTable({
+      id: `table-${index}`,
+      name: spec.name,
+      status: spec.status,
+      game_date: daysBefore(spec.daysAgo),
+      join_code: `PW${1000 + index}`,
+      ...lifecycleTimes(spec.status, spec.daysAgo),
+    }),
+    role: spec.role,
+    playerCount: 3 + (index % 4),
+  };
+}
+
+export const MY_TABLES: TableListItem[] = TABLE_LIST_SPECS.map(listItem);
+
+/**
+ * The case the grouping exists for: two waiting, none active, one counting,
+ * three finished, none cancelled — so only three headings should appear.
+ */
+export const MY_TABLES_SPARSE: TableListItem[] = [
+  { name: 'חמישי הבא', status: 'WAITING' as TableStatus, daysAgo: -2, role: 'ADMIN' as const },
+  { name: 'שבת אצל דנה', status: 'WAITING' as TableStatus, daysAgo: -5, role: 'PLAYER' as const },
+  { name: 'סופרים ז׳יטונים', status: 'COUNTING' as TableStatus, daysAgo: 0, role: 'ADMIN' as const },
+  { name: 'ערב פוקר בתל אביב', status: 'COMPLETED' as TableStatus, daysAgo: 3, role: 'PLAYER' as const },
+  { name: 'Home Game', status: 'COMPLETED' as TableStatus, daysAgo: 12, role: 'ADMIN' as const },
+  { name: 'פוקר של פעם', status: 'COMPLETED' as TableStatus, daysAgo: 60, role: 'PLAYER' as const },
+].map(listItem);
 
 /**
  * Friends, requests and search results — with a long Hebrew name and a Latin

@@ -149,6 +149,32 @@ export async function createTableAction(
   });
 }
 
+/**
+ * Takes one finished game off the caller's own list, or puts it back.
+ *
+ * A presentation preference. It writes a row saying "this person does not want
+ * this table on their screen" and nothing else — no game data is touched, and
+ * no other player's list changes. The database decides who may do it and for
+ * which tables; this only carries the request.
+ */
+export async function setTableHiddenAction(
+  tableId: string,
+  hidden: boolean,
+): Promise<ActionResult> {
+  return guard(async () => {
+    const supabase = await createClient();
+    const { error } = hidden
+      ? await supabase.rpc('hide_table', { p_table: tableId })
+      : await supabase.rpc('unhide_table', { p_table: tableId });
+    if (error) throw error;
+
+    // The list is a server component, so it has to be told the row it reads
+    // has changed. Scoped to the one page that shows it.
+    revalidatePath('/tables');
+    return ok();
+  });
+}
+
 /** The manager's blind-timer controls. Every one is authorised in the database. */
 export async function blindTimerAction(
   tableId: string,
