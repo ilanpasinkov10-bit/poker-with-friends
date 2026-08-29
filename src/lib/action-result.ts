@@ -12,10 +12,6 @@ export function ok<T>(data?: T): ActionResult<T | undefined> {
 
 export function fail(error: unknown): ActionResult<never> {
   const { code, message } = toHebrewError(error);
-  // Developer context never travels to the client, but it must reach the logs.
-  if (error instanceof AppError && error.detail) {
-    console.error(`[action] ${code}: ${error.detail}`);
-  }
   return { ok: false, code, message };
 }
 
@@ -27,7 +23,14 @@ export async function guard<T>(run: () => Promise<ActionResult<T>>): Promise<Act
     // Always logged, production included. This runs on the server, so the
     // detail reaches the platform logs and never the browser — and without it
     // a failing action is indistinguishable from any other in production.
-    console.error('[action]', describeForLog(error));
+    //
+    // The mapped code is logged beside the raw description on purpose: the user
+    // is shown one sentence, and this is the line that says which rule produced
+    // it. When that code is UNKNOWN, the mapping missed a case and the rest of
+    // the line is what is needed to add it. `fail` logs nothing of its own, so
+    // one failure is one line.
+    const { code } = toHebrewError(error);
+    console.error('[action]', `mapped=${code}`, '|', describeForLog(error));
     return fail(error);
   }
 }
@@ -38,8 +41,21 @@ function describeForLog(error: unknown): string {
     return `${error.code}${error.detail ? `: ${error.detail}` : ''}`;
   }
   if (typeof error === 'object' && error !== null) {
-    const e = error as { code?: unknown; message?: unknown; details?: unknown; hint?: unknown };
+    const e = error as {
+      name?: unknown;
+      status?: unknown;
+      code?: unknown;
+      message?: unknown;
+      details?: unknown;
+      hint?: unknown;
+    };
+    // `name` and `status` matter for Supabase auth failures: every GoTrue 5xx
+    // arrives as an AuthRetryableFetchError with no `code` at all, so without
+    // these two a signup that failed inside the database and one that failed
+    // because the service was restarting look identical in the log.
     return [
+      e.name && e.name !== 'Error' ? `name=${String(e.name)}` : null,
+      typeof e.status === 'number' ? `status=${String(e.status)}` : null,
       e.code ? `code=${String(e.code)}` : null,
       e.message ? `message=${String(e.message)}` : null,
       e.details ? `details=${String(e.details)}` : null,
