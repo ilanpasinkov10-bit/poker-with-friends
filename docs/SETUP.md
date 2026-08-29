@@ -173,7 +173,32 @@ unauthenticated endpoint.
   - `http://localhost:3000/auth/callback`
   - `https://<your-domain>/auth/callback`
 
-Email confirmation links land on `/auth/callback`.
+Email confirmation links land on `/auth/callback`, which is the route that
+exchanges the `?code=` for a session. Sign-up asks Supabase to send people
+there explicitly (`emailRedirectTo`), but Supabase only honours an address that
+is on this list — anything else silently becomes Site URL, and the person
+confirms their address and arrives signed out.
+
+`emailRedirectTo` is built from `NEXT_PUBLIC_SITE_URL` when it is set, and from
+Vercel's own domain otherwise. On a preview deployment that is the *production*
+domain, so a link opened from a preview signup lands on production. Set
+`NEXT_PUBLIC_SITE_URL` on the preview environment if you want it to stay there.
+
+### 5d. Sending the confirmation email
+
+**Authentication → Providers → Email** decides whether an address has to be
+confirmed at all, and **Project Settings → Authentication → SMTP Settings**
+decides who sends the mail.
+
+With *Confirm email* on and no custom SMTP, Supabase's built-in sender applies a
+hard hourly cap (a handful of messages per hour, shared by the whole project).
+Past it, signups fail — the person sees only *"בוצעו יותר מדי ניסיונות…"*, and
+the server log records `mapped=TOO_MANY_ATTEMPTS` or `mapped=EMAIL_SEND_FAILED`.
+The built-in sender is documented as being for testing; a project with real
+users wants its own SMTP.
+
+Turning *Confirm email* off removes the email from the path entirely: signup
+returns a session and the person is signed in immediately.
 
 ---
 
@@ -241,6 +266,27 @@ startup.
 
 **A confirmation link bounces** — the redirect URL is not on the allow list
 (step 5c).
+
+**Registration fails with *"משהו השתבש. נסו שוב בעוד רגע."*** — that message is
+now shown only for a failure inside Supabase itself; everything a person can act
+on says what it is. Find the cause in the server log: every failed action logs
+one line beginning `[action] mapped=…`, and the code after `mapped=` names it.
+
+| `mapped=` | What happened | Where to fix it |
+| --- | --- | --- |
+| `SIGNUP_DB_ERROR` | A trigger raised while creating the profile | Run `supabase/checks/registration_health.sql` in the SQL editor |
+| `EMAIL_SEND_FAILED` | The confirmation email could not be sent | SMTP settings (step 5d) |
+| `TOO_MANY_ATTEMPTS` | The project's rate limit | Wait, or configure your own SMTP (step 5d) |
+| `SIGNUP_DISABLED` | Signups are off for the project | Authentication → Providers |
+| `EMAIL_SIGNUP_DISABLED` | The email provider is off | Authentication → Providers → Email |
+| `CAPTCHA_FAILED` | CAPTCHA is on and the form sends no token | Authentication → Settings, or turn it off |
+| `AUTH_SERVER_ERROR` | The auth service answered 5xx | Supabase status / project logs |
+
+`supabase/checks/registration_health.sql` is read-only: paste it into the SQL
+editor and it reports, row by row, whether the profile trigger still exists, is
+enabled, still runs as its owner, and whether any account has been left without
+a profile. It is run against a clean database by `npm run test:db` too, so a
+`PROBLEM` row means production has drifted from the migrations.
 
 **Nothing updates without a refresh** — check the realtime publication. The app
 also polls every 30 seconds, so a table that only updates on that cadence points

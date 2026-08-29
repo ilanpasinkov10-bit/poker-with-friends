@@ -1990,6 +1990,92 @@ begin
 end $$;
 
 \echo ''
+\echo '── registering an account ──'
+do $$
+declare
+  -- The rows GoTrue writes when somebody signs up. "Database error saving new
+  -- user" — the 500 a failing signup returns — is this trigger raising, so
+  -- every shape of new user it can be handed is inserted here and the profile
+  -- it must produce is checked.
+  plain    uuid := 'c0000000-0000-4000-8000-000000000001';
+  noname   uuid := 'c0000000-0000-4000-8000-000000000002';
+  longname uuid := 'c0000000-0000-4000-8000-000000000003';
+  spaces   uuid := 'c0000000-0000-4000-8000-000000000004';
+  guest    uuid := 'c0000000-0000-4000-8000-000000000005';
+  emoji    uuid := 'c0000000-0000-4000-8000-000000000006';
+begin
+  perform expect(
+    exists (
+      select 1 from pg_trigger
+       where tgname = 'on_auth_user_created' and tgrelid = 'auth.users'::regclass
+    ),
+    'a new auth user still triggers profile creation');
+  perform expect(
+    (select prosecdef from pg_proc
+      where oid = 'public.handle_new_auth_user()'::regprocedure),
+    'and it runs as its owner, so RLS cannot block the insert');
+
+  -- A normal registration.
+  insert into auth.users (id, email, raw_user_meta_data, is_anonymous)
+  values (plain, 'new@example.com', '{"display_name":"נועה"}', false);
+  perform expect((select display_name from public.profiles where id = plain) = 'נועה',
+    'a registered signup gets a profile with the name they typed');
+  perform expect(not (select is_guest from public.profiles where id = plain),
+    'and is not marked as a guest');
+  perform expect(exists (select 1 from public.profile_privacy_settings where profile_id = plain),
+    'and gets privacy settings, which every later screen assumes exist');
+
+  -- No display name in the metadata: the address stands in for one.
+  insert into auth.users (id, email, raw_user_meta_data, is_anonymous)
+  values (noname, 'dana@example.com', '{}', false);
+  perform expect((select display_name from public.profiles where id = noname) = 'dana',
+    'a signup with no name falls back to the address, rather than failing');
+
+  -- Longer than the column allows. The check constraint is 1..40 characters,
+  -- so an untruncated insert here is exactly what a 500 looks like.
+  insert into auth.users (id, email, raw_user_meta_data, is_anonymous)
+  values (longname, 'long@example.com',
+          jsonb_build_object('display_name', repeat('א', 120)), false);
+  perform expect(
+    char_length((select display_name from public.profiles where id = longname)) = 40,
+    'a name longer than the column allows is cut, not refused');
+
+  -- Whitespace only, which btrim would reduce to nothing.
+  insert into auth.users (id, email, raw_user_meta_data, is_anonymous)
+  values (spaces, 'spaces@example.com', '{"display_name":"    "}', false);
+  perform expect(
+    char_length(btrim((select display_name from public.profiles where id = spaces))) between 1 and 40,
+    'a name of nothing but spaces still satisfies the column''s own rule');
+
+  -- Emoji and combining marks: char_length counts characters, left() cuts
+  -- characters, so a 40-emoji name is 40 characters and fits.
+  insert into auth.users (id, email, raw_user_meta_data, is_anonymous)
+  values (emoji, 'emoji@example.com',
+          jsonb_build_object('display_name', repeat('🂡', 60)), false);
+  perform expect(exists (select 1 from public.profiles where id = emoji),
+    'a name of emoji is stored rather than raising');
+
+  -- A guest, which is the same trigger and the path that already works in
+  -- production — so a signup failing while guests keep working means the
+  -- trigger is fine and the failure is upstream of it.
+  insert into auth.users (id, email, raw_user_meta_data, is_anonymous)
+  values (guest, null, '{}', true);
+  perform expect((select is_guest from public.profiles where id = guest),
+    'an anonymous sign-in gets a profile marked as a guest');
+
+  -- Signing up twice with the same id (a retried insert) must not raise.
+  insert into auth.users (id, email, raw_user_meta_data, is_anonymous)
+  values (plain, 'new@example.com', '{"display_name":"נועה"}', false)
+  on conflict (id) do nothing;
+  perform expect((select count(*) from public.profiles where id = plain) = 1,
+    'and a repeated insert leaves exactly one profile');
+
+  delete from auth.users where id in (plain, noname, longname, spaces, guest, emoji);
+  perform expect((select count(*) from public.profiles where id = plain) = 0,
+    'deleting the auth user takes the profile with it');
+end $$;
+
+\echo ''
 \echo '── the foreign keys the app embeds through ──'
 do $$
 declare
