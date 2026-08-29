@@ -8,7 +8,18 @@ import { joinPath, joinUrl } from '@/lib/domain/join-link';
 import { QrJoinModal } from './QrJoinModal';
 
 /** Share panel: copy the code, copy the link, or use the native share sheet. */
-export function JoinCodeCard({ joinCode, tableName }: { joinCode: string; tableName: string }) {
+export function JoinCodeCard({
+  tableId,
+  joinCode,
+  tableName,
+  seatedUserIds,
+}: {
+  tableId: string;
+  joinCode: string;
+  tableName: string;
+  /** Registered players already at the table, for the invite sheet's labels. */
+  seatedUserIds: string[];
+}) {
   const toast = useToast();
   const [qrOpen, setQrOpen] = useState(false);
   // Resolved once on the client, where the origin is known. Every share
@@ -62,10 +73,15 @@ export function JoinCodeCard({ joinCode, tableName }: { joinCode: string; tableN
         </ShareButton>
       </div>
 
-      {/* Reuses the very link above: inviting a friend is a way of *sending*
-          the join link, not a second way into the table. */}
+      {/* Inviting a friend inside the app, with the link above still offered
+          inside the sheet for everybody who is not on it. */}
       <div className="mt-2">
-        <InviteFriendsButton tableName={tableName} joinCode={joinCode} />
+        <InviteFriendsButton
+          tableId={tableId}
+          tableName={tableName}
+          joinCode={joinCode}
+          seatedUserIds={seatedUserIds}
+        />
       </div>
 
       <QrJoinModal

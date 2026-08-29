@@ -2029,7 +2029,11 @@ begin
   perform expect_error(format('select public.invite_friend_to_table(%L, %L)', tbl, michal),
     'NOT_FRIENDS', 'a stranger cannot be invited');
 
-  inv := public.invite_friend_to_table(tbl, shay);
+  answer := public.invite_friend_to_table(tbl, shay);
+  inv := (answer ->> 'id')::uuid;
+  perform expect((answer ->> 'created')::boolean, 'the first invitation is a new one');
+  perform expect(answer ->> 'table_name' = 'ערב הזמנות' and answer ->> 'inviter_name' = 'אילן',
+    'and it reports what a notification needs, without a second query');
   perform expect(
     (select count(*) from public.table_invitations
       where table_id = tbl and invitee_id = shay and inviter_id = ilan
@@ -2037,8 +2041,11 @@ begin
     'an admin can invite a friend, and it is recorded once');
 
   -- Asking twice is the same invitation, not a second one.
-  again := public.invite_friend_to_table(tbl, shay);
+  answer := public.invite_friend_to_table(tbl, shay);
+  again := (answer ->> 'id')::uuid;
   perform expect(again = inv, 'inviting the same friend again returns the same invitation');
+  perform expect(not (answer ->> 'created')::boolean,
+    'and says it created nothing, so no second notification is sent');
   perform expect((select count(*) from public.table_invitations where table_id = tbl) = 1,
     'and does not create a duplicate');
   perform expect_error(
@@ -2131,7 +2138,7 @@ begin
   -- ── declining ──
   other := (public.create_poker_table('ערב שני', current_date, now(), now() + interval '5h',
               5000, 500, 6, 'AUTO_JOIN', 'OPEN', 'ADMIN_COUNT', true, null)).id;
-  inv := public.invite_friend_to_table(other, shay);
+  inv := (public.invite_friend_to_table(other, shay) ->> 'id')::uuid;
   perform test_as(shay);
   answer := public.respond_to_table_invitation(inv, false);
   perform expect(answer ->> 'status' = 'DECLINED', 'an invitation can be declined');
@@ -2160,7 +2167,7 @@ begin
   perform test_as(ilan);
   tbl := (public.create_poker_table('ערב שנסגר', current_date, now(), now() + interval '5h',
             5000, 500, 6, 'AUTO_JOIN', 'OPEN', 'ADMIN_COUNT', true, null)).id;
-  inv := public.invite_friend_to_table(tbl, shay);
+  inv := (public.invite_friend_to_table(tbl, shay) ->> 'id')::uuid;
   perform public.set_table_status(tbl, 'CANCELLED');
 
   -- No new invitations to it...
@@ -2197,7 +2204,7 @@ begin
             5000, 500, 6, 'AUTO_JOIN', 'OPEN', 'ADMIN_COUNT', true, null)).id;
   insert into public.table_players (table_id, user_id, display_name, status, approved_at)
   values (tbl, michal, 'שי', 'ACTIVE', now());
-  inv := public.invite_friend_to_table(tbl, shay);
+  inv := (public.invite_friend_to_table(tbl, shay) ->> 'id')::uuid;
 
   perform test_as(shay);
   perform public.respond_to_table_invitation(inv, true);
@@ -2214,7 +2221,7 @@ begin
             5000, 500, 6, 'AUTO_JOIN', 'OPEN', 'ADMIN_COUNT', true, null)).id;
   insert into public.table_players (table_id, user_id, display_name, status)
   values (tbl, shay, 'שי', 'REMOVED') returning id into seat;
-  inv := public.invite_friend_to_table(tbl, shay);
+  inv := (public.invite_friend_to_table(tbl, shay) ->> 'id')::uuid;
   perform test_as(shay);
   perform expect_error(format('select public.respond_to_table_invitation(%L, true)', inv),
     'NOT_AUTHORIZED', 'an invitation cannot undo being removed from a table');
@@ -2230,7 +2237,7 @@ begin
   perform test_as(ilan);
   tbl := (public.create_poker_table('ערב אחרון', current_date, now(), now() + interval '5h',
             5000, 500, 6, 'AUTO_JOIN', 'OPEN', 'ADMIN_COUNT', true, null)).id;
-  inv := public.invite_friend_to_table(tbl, shay);
+  inv := (public.invite_friend_to_table(tbl, shay) ->> 'id')::uuid;
   perform public.remove_friend(shay);
   perform expect_error(format('select public.invite_friend_to_table(%L, %L)', tbl, shay),
     'NOT_FRIENDS', 'somebody who is no longer a friend cannot be invited again');

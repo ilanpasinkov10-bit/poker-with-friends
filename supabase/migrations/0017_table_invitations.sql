@@ -90,13 +90,17 @@ grant select on public.table_invitations to authenticated;
 -- name themselves as somebody else, and cannot invite on behalf of a table
 -- they do not run.
 -- ---------------------------------------------------------------------------
-create or replace function public.invite_friend_to_table(p_table uuid, p_friend uuid)
-returns uuid language plpgsql security definer set search_path = public as $$
+-- Dropped rather than replaced: an earlier draft of this function returned a
+-- bare uuid, and PostgreSQL will not change a return type in place.
+drop function if exists public.invite_friend_to_table(uuid, uuid);
+create function public.invite_friend_to_table(p_table uuid, p_friend uuid)
+returns jsonb language plpgsql security definer set search_path = public as $$
 declare
   v_uid    uuid := public.require_uid();
   v_table  public.poker_tables;
   v_id     uuid;
   v_status public.invitation_status;
+  v_new    boolean := true;
 begin
   if p_friend = v_uid then raise exception 'CANNOT_INVITE_SELF'; end if;
 
@@ -125,17 +129,29 @@ begin
    where table_id = p_table and invitee_id = p_friend;
 
   if found then
-    -- Asking twice is not an error; it is the same invitation.
-    if v_status = 'PENDING' then return v_id; end if;
-    -- A declined invitation stays declined. Being asked again after saying no
-    -- is the thing an invitation system most easily gets wrong.
-    raise exception 'INVITATION_ALREADY_ANSWERED';
+    -- Asking twice is not an error; it is the same invitation. Saying so —
+    -- rather than returning the id alone — is what lets the caller send one
+    -- notification for one invitation instead of one per tap.
+    if v_status = 'PENDING' then
+      v_new := false;
+    else
+      -- A declined invitation stays declined. Being asked again after saying
+      -- no is the thing an invitation system most easily gets wrong.
+      raise exception 'INVITATION_ALREADY_ANSWERED';
+    end if;
+  else
+    insert into public.table_invitations (table_id, inviter_id, invitee_id)
+    values (p_table, v_uid, p_friend)
+    returning id into v_id;
   end if;
 
-  insert into public.table_invitations (table_id, inviter_id, invitee_id)
-  values (p_table, v_uid, p_friend)
-  returning id into v_id;
-  return v_id;
+  -- The name of the table and of whoever is inviting, so the notification can
+  -- be written without two more round trips for facts already in hand here.
+  return jsonb_build_object(
+    'id', v_id,
+    'created', v_new,
+    'table_name', v_table.name,
+    'inviter_name', (select display_name from public.profiles where id = v_uid));
 end;
 $$;
 

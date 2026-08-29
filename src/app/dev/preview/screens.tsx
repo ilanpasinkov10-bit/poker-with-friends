@@ -399,7 +399,12 @@ export const SCREENS: PreviewScreen[] = [
     note: 'כפתור "קוד QR" פותח מודאל עם הקוד. הוא מצביע בדיוק לקישור ההצטרפות הקיים — /join/A7K92.',
     render: () => (
       <Framed title="פוקר של יום חמישי" subtitle="שיתוף">
-        <JoinCodeCard joinCode="A7K92" tableName="פוקר של יום חמישי" />
+        <JoinCodeCard
+          tableId="00000000-0000-4000-8000-000000000001"
+          joinCode="A7K92"
+          tableName="פוקר של יום חמישי"
+          seatedUserIds={[]}
+        />
       </Framed>
     ),
   },

@@ -105,6 +105,18 @@ function TableHeader({ model, connected }: { model: TableViewModel; connected: b
   );
 }
 
+/**
+ * Everybody with a registered account who already has a seat here — including
+ * whoever cashed out, because the database refuses to invite them too. Used
+ * only to label the invite sheet; the refusal itself lives in the database.
+ */
+function seatedUserIds(model: TableViewModel): string[] {
+  const ids = [...model.participants, ...model.pendingPlayers]
+    .map((player) => player.userId)
+    .filter((id): id is string => Boolean(id));
+  return [...new Set(ids)];
+}
+
 function LiveSection({ model }: { model: TableViewModel }) {
   const { table, viewer, players, leftPlayers, pendingPlayers, pendingRequests, totals } = model;
   const [profileUserId, setProfileUserId] = useState<string | null>(null);
@@ -126,7 +138,12 @@ function LiveSection({ model }: { model: TableViewModel }) {
 
       {viewer.isAdmin ? (
         <>
-          <JoinCodeCard joinCode={table.join_code} tableName={table.name} />
+          <JoinCodeCard
+            tableId={table.id}
+            joinCode={table.join_code}
+            tableName={table.name}
+            seatedUserIds={seatedUserIds(model)}
+          />
 
           <PendingJoinRequests tableId={table.id} players={pendingPlayers} />
           <PendingRebuyRequests
