@@ -35,7 +35,7 @@ export async function notifyTableInvitation({
 }) {
   await notifyUsers({
     recipientIds: [inviteeId],
-    title: 'הזמנה לשולחן',
+    title: '🃏 הזמנה לשולחן',
     body: `${inviterName} הזמין אותך לשולחן "${tableName}"`,
     kind: 'TABLE_INVITATION',
     // The home screen, where the invitation card is — not the table itself,

@@ -28,6 +28,8 @@ import { LeaderboardView } from '@/components/table/LeaderboardView';
 import { PlayerCard } from '@/components/table/PlayerCard';
 import { TablesBrowser } from '@/components/tables/TablesBrowser';
 import { FriendsScreen } from '@/components/friends/FriendsScreen';
+import { InviteFriendList } from '@/components/friends/InviteFriendsButton';
+import { PendingInvitations } from '@/components/invitations/PendingInvitations';
 import { TableScreen } from '@/components/table/TableScreen';
 import { ShareCardPreview } from './ShareCardPreview';
 import { Avatar } from '@/components/ui/Avatar';
@@ -44,6 +46,8 @@ import {
   JOIN_PREVIEW,
   LEADERBOARD,
   FRIENDS,
+  FRIEND_INVITES,
+  PENDING_INVITATIONS,
   INCOMING_REQUESTS,
   LEFT_PLAYERS,
   OUTGOING_REQUESTS,
@@ -612,6 +616,32 @@ export const SCREENS: PreviewScreen[] = [
             settlements: SETTLEMENT_ROWS,
           })}
         />
+      </Framed>
+    ),
+  },
+  {
+    id: 'table-invitations',
+    label: 'הזמנות במסך הבית',
+    group: 'פרופיל שחקן',
+    note:
+      'הכרטיס מופיע רק כשיש הזמנות ממתינות — אין כותרת ריקה. נבדקים כאן שם שולחן ארוך, ' +
+      'שם מזמין ארוך, ושתי הזמנות יחד.',
+    render: () => (
+      <Framed title="ערב הפוקר שלכם" subtitle="מסך הבית" withNav>
+        <PendingInvitations invitations={PENDING_INVITATIONS} today="2026-08-28" />
+      </Framed>
+    ),
+  },
+  {
+    id: 'invite-friends',
+    label: 'הזמנת חברים לשולחן',
+    group: 'משחק חי',
+    note:
+      'ארבעת המצבים של חבר: אפשר להזמין, הוזמן, הצטרף ודחה. רק הראשון הוא כפתור — ' +
+      'השאר הם מצב, ולא ניתן להזמין שוב.',
+    render: () => (
+      <Framed title="פוקר של יום חמישי" subtitle="הזמן חברים">
+        <InviteFriendList friends={FRIEND_INVITES} busyUserId={null} onInvite={() => {}} />
       </Framed>
     ),
   },

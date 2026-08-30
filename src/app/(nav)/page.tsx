@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { PendingInvitations } from '@/components/invitations/PendingInvitations';
+import { RefreshOnInvitation } from '@/components/invitations/RefreshOnInvitation';
 import { PendingLink } from '@/components/layout/PendingLink';
 import { PageShell } from '@/components/layout/PageShell';
 import { Avatar } from '@/components/ui/Avatar';
@@ -7,6 +8,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Num } from '@/components/ui/Num';
 import { getOwnProfile, getSessionIdentity } from '@/lib/auth';
 import { loadPendingInvitations } from '@/lib/data/invitations';
+import { todayInJerusalem } from '@/lib/timezone';
 import { createClient } from '@/lib/supabase/server';
 import { formatDate, formatMoney } from '@/lib/format';
 import { isSupabaseConfigured } from '@/lib/env';
@@ -90,7 +92,11 @@ export default async function HomePage() {
           </Link>
         </div>
 
-        <PendingInvitations invitations={invitations} />
+        <PendingInvitations invitations={invitations} today={todayInJerusalem()} />
+        {/* Listens for the push the service worker already receives, so an
+            invitation that arrives while this screen is open appears without a
+            manual refresh — and without a socket. Renders nothing. */}
+        {user && !user.isAnonymous ? <RefreshOnInvitation /> : null}
 
         {liveTables.length > 0 ? (
           <section className="mt-8">

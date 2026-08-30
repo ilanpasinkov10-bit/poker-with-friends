@@ -20,7 +20,7 @@ import type { InvitationStatus, TableStatus } from '@/types/database';
  * and both are pinned in the database test suite.
  */
 const WITH_TABLE_AND_INVITER =
-  'id, table_id, poker_tables!table_invitations_table_id_fkey(id, name, status, game_date, buy_in_agorot),' +
+  'id, table_id, poker_tables!table_invitations_table_id_fkey(id, name, status, game_date, planned_start_at, buy_in_agorot),' +
   ' inviter:profiles!table_invitations_inviter_id_fkey(display_name, avatar_url)';
 
 interface RawPending {
@@ -31,6 +31,7 @@ interface RawPending {
     name: string;
     status: TableStatus;
     game_date: string;
+    planned_start_at: string;
     buy_in_agorot: number;
   } | null;
   inviter: { display_name: string; avatar_url: string | null } | null;
@@ -67,6 +68,7 @@ export async function loadPendingInvitations(userId: string): Promise<PendingInv
         tableId: table.id,
         tableName: table.name,
         gameDate: table.game_date,
+        plannedStartAt: table.planned_start_at,
         buyInAgorot: table.buy_in_agorot,
         inviterName: row.inviter?.display_name ?? 'מארגן השולחן',
         inviterAvatarUrl: row.inviter?.avatar_url ?? null,

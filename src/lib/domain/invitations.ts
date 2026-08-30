@@ -67,8 +67,31 @@ export interface PendingInvitationView {
   id: string;
   tableId: string;
   tableName: string;
+  /** `YYYY-MM-DD`, the night the game is on. */
   gameDate: string;
+  /** When it starts, as a timestamp. */
+  plannedStartAt: string;
   buyInAgorot: number;
   inviterName: string;
   inviterAvatarUrl: string | null;
+}
+
+/**
+ * "היום" / "מחר" for a game that is one of those, and null for any other day —
+ * which the card then writes out as a date.
+ *
+ * Both arguments are `YYYY-MM-DD` in Israel, so this compares the days people
+ * actually mean rather than instants: a game at 21:00 tonight is "היום" for
+ * everyone looking at it, including somebody whose device thinks it is already
+ * tomorrow. `todayInJerusalem()` supplies the second argument; taking it as a
+ * parameter is what keeps this function free of a clock and directly testable.
+ */
+export function relativeDayLabel(gameDate: string, today: string): string | null {
+  if (gameDate === today) return 'היום';
+
+  const [y, m, d] = today.split('-').map(Number);
+  if (!y || !m || !d) return null;
+  const tomorrow = new Date(Date.UTC(y, m - 1, d + 1));
+  const iso = tomorrow.toISOString().slice(0, 10);
+  return gameDate === iso ? 'מחר' : null;
 }
