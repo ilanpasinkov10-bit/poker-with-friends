@@ -24,6 +24,20 @@ self.addEventListener('push', (event) => {
   const body = typeof payload.body === 'string' ? payload.body : '';
   const url = typeof payload.url === 'string' ? payload.url : '/';
 
+  // Tell any open tab that something happened, so a screen showing this kind of
+  // thing can re-read it. This is not a second delivery channel: it is the same
+  // push, forwarded to a page that happens to be open, and a page that is not
+  // listening ignores it. It keeps the home screen's invitations current
+  // without a socket of its own.
+  event.waitUntil(
+    (async () => {
+      const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      for (const client of clients) {
+        client.postMessage({ source: 'pwf-push', kind: payload.kind ?? null });
+      }
+    })(),
+  );
+
   event.waitUntil(
     self.registration.showNotification(title, {
       body,

@@ -18,6 +18,7 @@ import type { CompletedGameRecord } from '@/lib/domain/stats';
 import type { PendingRequestView, PlayerView, TableViewModel } from '@/lib/data/table';
 import type { LeaderboardRow } from '@/lib/data/profile';
 import type { FriendRequestSummary, FriendSummary } from '@/lib/domain/friends';
+import type { FriendInviteView, PendingInvitationView } from '@/lib/domain/invitations';
 import type { TableListItem } from '@/components/tables/TablesBrowser';
 import type {
   GameResultRow,
@@ -558,6 +559,43 @@ export const FRIENDS: FriendSummary[] = [
   { userId: 'friend-2', displayName: 'מיכל כהן-ברששת', avatarUrl: AVATARS.michal },
   { userId: 'friend-3', displayName: 'Daniel', avatarUrl: null },
   { userId: 'friend-4', displayName: 'אבישי רוזנצוויג', avatarUrl: null },
+];
+
+/** One friend in each state the invite sheet can show, including a long name. */
+export const FRIEND_INVITES: FriendInviteView[] = [
+  { userId: 'friend-1', displayName: 'שי', avatarUrl: AVATARS.shay, state: 'CAN_INVITE' },
+  {
+    userId: 'friend-2',
+    displayName: 'מיכל כהן-ברששת',
+    avatarUrl: AVATARS.michal,
+    state: 'INVITED',
+  },
+  { userId: 'friend-3', displayName: 'Daniel', avatarUrl: null, state: 'JOINED' },
+  { userId: 'friend-4', displayName: 'אבישי רוזנצוויג', avatarUrl: null, state: 'DECLINED' },
+];
+
+/** Two invitations waiting on the home screen: a short name and a long one. */
+export const PENDING_INVITATIONS: PendingInvitationView[] = [
+  {
+    id: 'inv-1',
+    tableId: 'table-1',
+    tableName: 'פוקר של יום חמישי',
+    gameDate: '2026-08-28',
+    plannedStartAt: '2026-08-28T18:00:00.000Z',
+    buyInAgorot: 5000,
+    inviterName: 'שי',
+    inviterAvatarUrl: AVATARS.shay,
+  },
+  {
+    id: 'inv-2',
+    tableId: 'table-2',
+    tableName: 'ערב פוקר גדול במיוחד אצל מיכל',
+    gameDate: '2026-08-30',
+    plannedStartAt: '2026-08-30T19:30:00.000Z',
+    buyInAgorot: 12000,
+    inviterName: 'מיכל כהן-ברששת',
+    inviterAvatarUrl: AVATARS.michal,
+  },
 ];
 
 export const INCOMING_REQUESTS: FriendRequestSummary[] = [

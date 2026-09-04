@@ -50,6 +50,14 @@ const MESSAGES: Record<string, string> = {
   NOT_FRIENDS: 'אתם לא חברים',
   GUEST_CANNOT_FRIEND: 'חברויות זמינות רק לחשבונות רשומים',
 
+  // Table invitations. `INVITATION_NOT_FOUND` is deliberately what an
+  // invitation belonging to somebody else returns too: a refusal would confirm
+  // the id points at something real.
+  CANNOT_INVITE_SELF: 'אי אפשר להזמין את עצמך לשולחן',
+  ALREADY_AT_TABLE: 'השחקן כבר בשולחן',
+  INVITATION_ALREADY_ANSWERED: 'ההזמנה כבר נענתה',
+  INVITATION_NOT_FOUND: 'ההזמנה לא נמצאה',
+
   // Blind levels.
   INVALID_BLIND_STRUCTURE: 'מבנה הבליינדים אינו תקין. בדקו את הסכומים ואת משך השלבים.',
   BLIND_TIMER_NOT_RUNNING: 'טיימר הבליינדים אינו פעיל בשולחן הזה',

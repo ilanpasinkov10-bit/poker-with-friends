@@ -42,6 +42,24 @@ export type HiddenTableRow = {
   hidden_at: string;
 }
 
+export type InvitationStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED';
+
+/**
+ * One person asked another to a game. Unique per (table, invitee) — see
+ * migration 0017: a second invitation to the same person is impossible in the
+ * database rather than prevented by looking first.
+ */
+export type TableInvitationRow = {
+  id: string;
+  table_id: string;
+  inviter_id: string;
+  invitee_id: string;
+  status: InvitationStatus;
+  created_at: string;
+  updated_at: string;
+  responded_at: string | null;
+}
+
 export type FriendshipStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED';
 
 /**
@@ -310,6 +328,13 @@ export type Database = {
         HiddenTableRow,
         [Rel<'hidden_tables_table_id_fkey', 'table_id', 'poker_tables'>]
       >;
+      table_invitations: ReadOnly<
+        TableInvitationRow,
+        [
+          Rel<'table_invitations_table_id_fkey', 'table_id', 'poker_tables'>,
+          Rel<'table_invitations_inviter_id_fkey', 'inviter_id', 'profiles', true>,
+        ]
+      >;
       friendships: ReadOnly<
         FriendshipRow,
         [
@@ -354,6 +379,11 @@ export type Database = {
       admin_add_buyin: { Args: { p_table_player: string }; Returns: undefined };
       reverse_buyin: { Args: { p_transaction: string; p_note?: string | null }; Returns: undefined };
       set_table_status: { Args: { p_table: string; p_status: string }; Returns: undefined };
+      invite_friend_to_table: { Args: { p_table: string; p_friend: string }; Returns: unknown };
+      respond_to_table_invitation: {
+        Args: { p_invitation: string; p_accept: boolean };
+        Returns: unknown;
+      };
       hide_table: { Args: { p_table: string }; Returns: undefined };
       unhide_table: { Args: { p_table: string }; Returns: undefined };
       set_blind_structure: { Args: { p_table: string; p_levels: unknown }; Returns: undefined };

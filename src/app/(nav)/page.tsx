@@ -1,10 +1,14 @@
 import Link from 'next/link';
+import { PendingInvitations } from '@/components/invitations/PendingInvitations';
+import { RefreshOnInvitation } from '@/components/invitations/RefreshOnInvitation';
 import { PendingLink } from '@/components/layout/PendingLink';
 import { PageShell } from '@/components/layout/PageShell';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
 import { Num } from '@/components/ui/Num';
 import { getOwnProfile, getSessionIdentity } from '@/lib/auth';
+import { loadPendingInvitations } from '@/lib/data/invitations';
+import { todayInJerusalem } from '@/lib/timezone';
 import { createClient } from '@/lib/supabase/server';
 import { formatDate, formatMoney } from '@/lib/format';
 import { isSupabaseConfigured } from '@/lib/env';
@@ -17,12 +21,22 @@ export default async function HomePage() {
   if (!isSupabaseConfigured()) return <NotConfigured />;
 
   const identity = await getSessionIdentity();
-  // Who the viewer is and what is happening tonight are separate facts in
-  // separate tables. Asking for the name first and the games only after it came
-  // back cost a whole network leg for no reason.
-  const [profile, liveTables] = identity
-    ? await Promise.all([getOwnProfile(identity.id), loadLiveTables()])
-    : [null, []];
+  // Who the viewer is, what is happening tonight, and who has asked you to a
+  // game are separate facts in separate tables. Asking for the name first and
+  // the rest only after it came back cost a whole network leg for no reason,
+  // so all three go out together and the screen waits once.
+  //
+  // Invitations are only asked for on behalf of a registered account: a guest
+  // cannot be anybody's friend, so the query could only ever come back empty,
+  // and skipping it keeps the guest home screen at the two requests it already
+  // made.
+  const [profile, liveTables, invitations] = identity
+    ? await Promise.all([
+        getOwnProfile(identity.id),
+        loadLiveTables(),
+        identity.isAnonymous ? [] : loadPendingInvitations(identity.id),
+      ])
+    : [null, [], []];
   const user = identity ? { ...identity, profile } : null;
 
   return (
@@ -77,6 +91,12 @@ export default async function HomePage() {
             </span>
           </Link>
         </div>
+
+        <PendingInvitations invitations={invitations} today={todayInJerusalem()} />
+        {/* Listens for the push the service worker already receives, so an
+            invitation that arrives while this screen is open appears without a
+            manual refresh — and without a socket. Renders nothing. */}
+        {user && !user.isAnonymous ? <RefreshOnInvitation /> : null}
 
         {liveTables.length > 0 ? (
           <section className="mt-8">
