@@ -69,3 +69,12 @@ done
 echo "› running database tests"
 echo
 $PSQL -f "$ROOT/supabase/tests/database.test.sql" 2>&1 | sed 's/^psql:.*NOTICE:  //; s/^psql:.*ERROR:  /ERROR: /'
+
+# The production health check is read-only, so running it here costs nothing
+# and proves it still parses and still passes against a database built from
+# these migrations — which is what makes a PROBLEM row in production mean
+# "production has drifted" rather than "the script is out of date".
+echo
+echo "› running the production health check against this database"
+$PSQL -f "$ROOT/supabase/checks/registration_health.sql" -P pager=off -t 2>&1 |
+  sed 's/^psql:.*ERROR:  /ERROR: /' | grep -v '^$' || true

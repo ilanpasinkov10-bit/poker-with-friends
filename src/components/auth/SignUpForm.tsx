@@ -89,7 +89,7 @@ export function SignUpForm({
         />
       </Field>
 
-      <Field label="סיסמה" htmlFor="password" hint="לפחות 8 תווים" error={error}>
+      <Field label="סיסמה" htmlFor="password" hint="לפחות 8 תווים">
         <TextInput
           id="password"
           name="password"
@@ -103,6 +103,19 @@ export function SignUpForm({
           onChange={(e) => setPassword(e.target.value)}
         />
       </Field>
+
+      {/* The refusal belongs to the form, not to the password box: most of
+          them — an address already registered, a mistyped address, too many
+          attempts — are nothing to do with the password, and hanging them off
+          that field pointed people at the wrong line. */}
+      {error ? (
+        <p
+          role="alert"
+          className="rounded-xl border border-loss/30 bg-loss-soft px-3 py-2 text-sm text-loss"
+        >
+          {error}
+        </p>
+      ) : null}
 
       <Button type="submit" size="lg" block loading={pending}>
         {upgradeGuest ? 'שמור את הפרופיל שלי' : 'יצירת חשבון'}

@@ -48,7 +48,7 @@ export function SignInForm({ next }: { next: string }) {
         />
       </Field>
 
-      <Field label="סיסמה" htmlFor="password" error={error}>
+      <Field label="סיסמה" htmlFor="password">
         <TextInput
           id="password"
           name="password"
@@ -61,6 +61,17 @@ export function SignInForm({ next }: { next: string }) {
           onChange={(e) => setPassword(e.target.value)}
         />
       </Field>
+
+      {/* Form-level, like the sign-up form: "האימייל או הסיסמה שגויים" is
+          about the pair, not about the password box it used to sit under. */}
+      {error ? (
+        <p
+          role="alert"
+          className="rounded-xl border border-loss/30 bg-loss-soft px-3 py-2 text-sm text-loss"
+        >
+          {error}
+        </p>
+      ) : null}
 
       <Button type="submit" size="lg" block loading={pending}>
         התחברות
