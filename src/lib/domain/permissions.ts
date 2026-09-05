@@ -36,6 +36,13 @@ export function canRequestRebuy(
   table: TableContext,
   hasPendingRequest: boolean,
 ): boolean {
+  // An unowned seat — a player the admin added by name, or one whose account
+  // was deleted — belongs to nobody, so nobody may act as them. Written out
+  // rather than left to the comparison below, which would read two nulls as
+  // the same person. The database refuses it either way (`request_rebuy`
+  // matches `user_id = auth.uid()`, and in SQL null never equals null); this
+  // keeps the button from being offered in the first place.
+  if (player.ownerUserId === null) return false;
   if (player.ownerUserId !== actor.userId) return false;
   if (player.status !== 'ACTIVE') return false;
   if (!isGameOpenForBuyIns(table.status)) return false;

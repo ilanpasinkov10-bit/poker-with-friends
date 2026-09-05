@@ -164,7 +164,12 @@ export function InviteFriendList({
 }: {
   friends: FriendInviteView[];
   busyUserId: string | null;
-  onInvite: (friend: FriendInviteView) => void;
+  /**
+   * Omitted by the gallery, which renders the states and has nothing to invite
+   * anybody to. A function prop cannot cross into a client component from a
+   * server one, so "no handler" has to mean no prop rather than a no-op.
+   */
+  onInvite?: (friend: FriendInviteView) => void;
 }) {
   return (
     <ul className="grid gap-2">
@@ -182,7 +187,7 @@ export function InviteFriendList({
               size="sm"
               className="ms-auto shrink-0"
               loading={busyUserId === friend.userId}
-              onClick={() => onInvite(friend)}
+              onClick={onInvite ? () => onInvite(friend) : undefined}
               aria-label={`הזמנת ${friend.displayName} לשולחן`}
             >
               {INVITE_STATE_LABEL.CAN_INVITE}

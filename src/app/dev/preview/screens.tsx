@@ -56,6 +56,7 @@ import {
   LONG_NAME_PLAYERS,
   SEATED_PLAYERS,
   PENDING_PLAYER,
+  PLAYERS_WITH_MANUAL,
   PENDING_REBUYS,
   PLAYERS,
   PRIVACY_SETTINGS,
@@ -386,6 +387,19 @@ export const SCREENS: PreviewScreen[] = [
     ),
   },
   {
+    id: 'manual-players',
+    label: 'שחקן ידני',
+    group: 'משחק חי',
+    note:
+      'דוד נוסף על ידי מנהל השולחן בשם בלבד — אין לו חשבון, אין אווטאר, ואי אפשר לפתוח לו פרופיל. ' +
+      'הוא נספר בקופה, בספירה ובהתחשבנות בדיוק כמו כולם. כפתור "+ הוסף שחקן" נמצא ליד רשימת השחקנים.',
+    render: () => (
+      <Framed title="פוקר של יום חמישי" subtitle="משחק פעיל">
+        <TableScreen model={makeModel({ players: PLAYERS_WITH_MANUAL })} />
+      </Framed>
+    ),
+  },
+  {
     id: 'share-cards',
     label: 'כרטיסי שיתוף',
     group: 'משחק חי',
@@ -641,7 +655,7 @@ export const SCREENS: PreviewScreen[] = [
       'השאר הם מצב, ולא ניתן להזמין שוב.',
     render: () => (
       <Framed title="פוקר של יום חמישי" subtitle="הזמן חברים">
-        <InviteFriendList friends={FRIEND_INVITES} busyUserId={null} onInvite={() => {}} />
+        <InviteFriendList friends={FRIEND_INVITES} busyUserId={null} />
       </Framed>
     ),
   },
