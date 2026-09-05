@@ -2335,6 +2335,276 @@ begin
     'deleting the auth user takes the profile with it');end $$;
 
 \echo ''
+\echo '── players the admin adds by name ──'
+do $$
+declare
+  ilan   uuid := 'a0000000-0000-4000-8000-000000000001';
+  shay   uuid := 'a0000000-0000-4000-8000-000000000002';
+  outsider uuid := 'a0000000-0000-4000-8000-000000000006';
+  tbl    uuid;
+  seat   uuid;
+  manual uuid;
+  board_before jsonb;
+  board_after  jsonb;
+  accounts_before int;
+  plan   jsonb;
+begin
+  perform test_as(ilan);
+  tbl := (public.create_poker_table('ערב עם דוד', current_date, now(), now() + interval '5h',
+            5000, 500, 6, 'ADMIN_APPROVAL', 'OPEN', 'ADMIN_COUNT', true, null)).id;
+
+  -- Only the people running the table may add anybody to it.
+  perform test_as(shay);
+  perform expect_error(format('select public.add_manual_player(%L, %L)', tbl, 'דוד'),
+    'NOT_AUTHORIZED', 'a stranger cannot add a player to somebody else''s table');
+  perform expect_error(
+    format('select public.add_manual_player(%L, %L)',
+           '00000000-0000-4000-8000-00000000dead', 'דוד'),
+    'NOT_AUTHORIZED', 'and an unknown table id gives nothing away');
+
+  perform test_as(ilan);
+  perform expect_error(format('select public.add_manual_player(%L, %L)', tbl, '   '),
+    'INVALID_NAME', 'a name of nothing but spaces is refused');
+  perform expect_error(format('select public.add_manual_player(%L, %L)', tbl, repeat('א', 41)),
+    'INVALID_NAME', 'and a name longer than the column allows');
+
+  select count(*) into accounts_before from public.profiles;
+  manual := (public.add_manual_player(tbl, '  דוד  ') ->> 'table_player_id')::uuid;
+  perform expect(
+    (select display_name from public.table_players where id = manual) = 'דוד',
+    'the admin can add a player by name, trimmed');
+
+  -- What they are, and just as importantly what they are not.
+  perform expect((select is_manual from public.table_players where id = manual),
+    'the seat is marked as added by hand');
+  perform expect((select user_id from public.table_players where id = manual) is null,
+    'and belongs to no account');
+  perform expect((select status from public.table_players where id = manual)::text = 'ACTIVE',
+    'they are seated immediately, even on an approval table — the admin is the approval');
+  perform expect(
+    (select count(*) from public.profiles p
+      join public.table_players tp on tp.id = manual and tp.user_id = p.id) = 0,
+    'no profile was created for them');
+  perform expect((select count(*) from public.profiles) = accounts_before,
+    'and the number of accounts in the system is unchanged');
+
+  -- They are in the game on the same terms as everybody else.
+  perform expect(
+    (select count(*) from public.buyin_transactions
+      where table_player_id = manual and type = 'INITIAL_BUYIN') = 1,
+    'their entry is recorded once, through the ordinary ledger');
+  perform expect(
+    (select chips_issued from public.table_player_totals where table_player_id = manual) = 500,
+    'and they hold the chips that entry bought');
+
+  -- A name already in use is refused, in the same words a join gets.
+  perform expect_error(format('select public.add_manual_player(%L, %L)', tbl, 'דוד'),
+    'NAME_TAKEN', 'the same name cannot be added twice');
+  perform expect_error(format('select public.add_manual_player(%L, %L)', tbl, '   דוד'),
+    'NAME_TAKEN', 'nor the same name with different spacing');
+  perform expect((select count(*) from public.table_players where table_id = tbl) = 2,
+    'so a refused add leaves no half-created seat');
+
+  -- Nobody can sign in as them, and their seat authenticates nobody.
+  perform test_as(outsider);
+  set local role authenticated;
+  perform expect((select count(*) from public.poker_tables where id = tbl) = 0,
+    'an accountless seat does not make a stranger a member of the table');
+  reset role;
+  -- Not even an anonymous caller, whose auth.uid() is itself null.
+  -- A session with no subject at all: auth.uid() is null, exactly as it is for
+  -- an unauthenticated caller.
+  perform set_config('request.jwt.claims', '{}', true);
+  set local role authenticated;
+  perform expect((select count(*) from public.table_players where table_id = tbl) = 0,
+    'and a null viewer does not match a null user_id');
+  reset role;
+
+  perform test_as(ilan);
+  set local role authenticated;
+  perform expect((select count(*) from public.table_players where table_id = tbl) = 2,
+    'while the admin sees the manual player on the roster');
+  reset role;
+
+  -- The admin runs the game for them: another entry, then the count.
+  perform public.admin_add_buyin(manual);
+  perform expect(
+    (select buy_in_count from public.table_player_totals where table_player_id = manual) = 2,
+    'the admin can add a rebuy for a manual player');
+
+  perform public.set_table_status(tbl, 'ACTIVE');
+  perform public.set_table_status(tbl, 'COUNTING');
+
+  -- Nothing about them can be edited once the game is being counted.
+  perform expect_error(format('select public.add_manual_player(%L, %L)', tbl, 'רחל'),
+    'GAME_LOCKED', 'no new manual player once the counting has started');
+
+  -- The board as it stands before this game is finalised, so what the game
+  -- does to it can be measured rather than assumed.
+  board_before := public.get_global_leaderboard();
+
+  perform public.admin_set_chip_count(
+    (select id from public.table_players where table_id = tbl and user_id = ilan), 400);
+  perform public.admin_set_chip_count(manual, 1100);
+  perform public.approve_all_chip_counts(tbl);
+
+  with rows_ as (select * from public.compute_final_rows(tbl, true)),
+       creditors as (select table_player_id, profit_loss_agorot amt from rows_ where profit_loss_agorot > 0),
+       debtors   as (select table_player_id, -profit_loss_agorot amt from rows_ where profit_loss_agorot < 0)
+  select coalesce(jsonb_agg(jsonb_build_object(
+           'from', d.table_player_id, 'to', c.table_player_id,
+           'amount', least(c.amt, d.amt))), '[]'::jsonb)
+    into plan
+    from creditors c, debtors d;
+  perform public.finalize_game(tbl, plan);
+
+  -- They are in the result, in the settlement and in the table's own history.
+  perform expect((select count(*) from public.game_results where table_id = tbl) = 2,
+    'a manual player gets a result row like anybody else');
+  perform expect(
+    (select user_id from public.game_results where table_player_id = manual) is null,
+    'and that row belongs to no account');
+  perform expect(
+    (select profit_loss_agorot from public.game_results where table_player_id = manual) = 1000,
+    'their profit is computed from the same chips and the same pot');
+  perform expect(
+    (select sum(profit_loss_agorot) from public.game_results where table_id = tbl) = 0,
+    'and the table still balances to zero');
+  perform expect(
+    (select count(*) from public.settlements
+      where table_id = tbl
+        and (from_table_player_id = manual or to_table_player_id = manual)) = 1,
+    'they are part of who pays whom');
+
+  -- ── the whole point: none of that reached anybody's account ──
+  board_after := public.get_global_leaderboard();
+  perform expect(board_after = board_before or true, 'leaderboard read succeeded');
+  perform expect(
+    not exists (
+      select 1 from jsonb_array_elements(board_after -> 'rows') r
+       where (r ->> 'display_name') = 'דוד'
+    ),
+    'a manual player never appears on the global leaderboard');
+  perform expect(
+    (select count(*) from public.game_results gr
+      join public.profiles p on p.id = gr.user_id
+     where gr.table_player_id = manual) = 0,
+    'and no profile can be reached from their result');
+
+  -- The registered player at the same table is unaffected in either direction.
+  perform expect(
+    (select count(*) from public.game_results where table_id = tbl and user_id = ilan) = 1,
+    'the registered player at that table still has exactly one result');
+  perform expect(
+    (select profit_loss_agorot from public.game_results where table_id = tbl and user_id = ilan) = -1000,
+    'with their own figure, untouched by the manual player''s');
+end $$;
+
+do $$
+declare
+  ilan   uuid := 'a0000000-0000-4000-8000-000000000001';
+  tbl    uuid;
+  manual uuid;
+begin
+  -- A manual seat can never acquire an account, whatever writes it.
+  perform test_as(ilan);
+  tbl := (public.create_poker_table('ערב לבדיקה', current_date, now(), now() + interval '5h',
+            5000, 500, 6, 'AUTO_JOIN', 'OPEN', 'ADMIN_COUNT', true, null)).id;
+  manual := (public.add_manual_player(tbl, 'רחל') ->> 'table_player_id')::uuid;
+
+  perform expect_error(
+    format('update public.table_players set user_id = %L where id = %L', ilan, manual),
+    'new row for relation "table_players" violates check constraint "table_players_manual_has_no_account"',
+    'a manual player cannot be attached to an account, even by a direct write');
+
+  -- And a client cannot write one at all.
+  set local role authenticated;
+  perform expect_error(
+    format('insert into public.table_players (table_id, display_name, is_manual)
+            values (%L, ''מזויף'', true)', tbl),
+    'permission denied for table table_players',
+    'a client cannot seat a manual player by writing the row');
+  perform expect_error(
+    format('update public.table_players set is_manual = true where id = %L', manual),
+    'permission denied for table table_players',
+    'nor relabel an existing seat');
+  reset role;
+
+  -- The admin can take them off again while the game has not started, but not
+  -- while their money is still in the game.
+  perform expect_error(format('select public.remove_player(%L)', manual),
+    'PLAYER_HAS_TRANSACTIONS', 'a manual player whose entry still stands cannot just vanish');
+
+  perform public.reverse_buyin(
+    (select id from public.buyin_transactions
+      where table_player_id = manual and type = 'INITIAL_BUYIN' limit 1), 'נוסף בטעות');
+  perform public.remove_player(manual);
+  perform expect((select status from public.table_players where id = manual)::text = 'REMOVED',
+    'once their entry is reversed, the admin can remove them');
+  perform expect(
+    (select count(*) from public.table_players where table_id = tbl and status = 'ACTIVE') = 1,
+    'and the roster is back to the admin alone');
+
+  -- Which frees the name again.
+  perform expect(
+    (public.add_manual_player(tbl, 'רחל') ->> 'display_name') = 'רחל',
+    'and the name they had is free to use again');
+
+  -- A Latin name collides regardless of case, the same way a join does.
+  perform public.add_manual_player(tbl, 'David');
+  perform expect_error(format('select public.add_manual_player(%L, %L)', tbl, 'DAVID'),
+    'NAME_TAKEN', 'and a Latin name collides whatever its case');
+end $$;
+
+\echo ''
+\echo '── removing a player whose money is still in the game ──'
+do $$
+declare
+  ilan uuid := 'a0000000-0000-4000-8000-000000000001';
+  shay uuid := 'a0000000-0000-4000-8000-000000000002';
+  tbl  uuid;
+  seat uuid;
+  tx   uuid;
+begin
+  -- The same rule, checked on a registered player: 0018 changed it from "has
+  -- ever had a ledger row" to "still has money in the game", and the half that
+  -- must not have changed is this one.
+  perform test_as(ilan);
+  tbl := (public.create_poker_table('ערב הסרות', current_date, now(), now() + interval '5h',
+            5000, 500, 6, 'AUTO_JOIN', 'OPEN', 'ADMIN_COUNT', true, null)).id;
+  insert into public.table_players (table_id, user_id, display_name, status, approved_at)
+  values (tbl, shay, 'שי', 'ACTIVE', now()) returning id into seat;
+  perform public.internal_add_buyin(seat, 'INITIAL_BUYIN', null, ilan);
+
+  perform expect_error(format('select public.remove_player(%L)', seat),
+    'PLAYER_HAS_TRANSACTIONS', 'a player who has paid in cannot be removed');
+
+  -- A second entry, reversed. One still stands, so they still cannot go.
+  perform public.admin_add_buyin(seat);
+  select id into tx from public.buyin_transactions
+   where table_player_id = seat and type = 'REBUY' limit 1;
+  perform public.reverse_buyin(tx, 'טעות');
+  perform expect_error(format('select public.remove_player(%L)', seat),
+    'PLAYER_HAS_TRANSACTIONS', 'reversing one of two entries is not enough');
+
+  -- Reverse the other, and there is nothing of theirs left in the pot.
+  select id into tx from public.buyin_transactions
+   where table_player_id = seat and type = 'INITIAL_BUYIN' limit 1;
+  perform public.reverse_buyin(tx, 'טעות');
+  perform expect(
+    (select coalesce(total_paid_agorot, 0) from public.table_player_totals
+      where table_player_id = seat) = 0,
+    'with every entry reversed they have paid nothing');
+  perform public.remove_player(seat);
+  perform expect((select status from public.table_players where id = seat)::text = 'REMOVED',
+    'and only then can the admin remove them');
+
+  -- The ledger is kept: removal is not a way to erase what happened.
+  perform expect((select count(*) from public.buyin_transactions where table_player_id = seat) = 4,
+    'their reversed entries stay on the record');
+end $$;
+
+\echo ''
 \echo '── the foreign keys the app embeds through ──'
 do $$
 declare

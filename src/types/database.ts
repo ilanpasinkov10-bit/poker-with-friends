@@ -139,6 +139,12 @@ export type TablePlayerRow = {
   display_name: string;
   status: PlayerStatus;
   is_admin: boolean;
+  /**
+   * Added to this table by the admin, by name, with no account behind them.
+   * Distinct from a null `user_id`, which also happens when a real account is
+   * deleted — see migration 0018.
+   */
+  is_manual: boolean;
   joined_at: string;
   approved_at: string | null;
   /** Set when the player cashed out of a game in progress. */
@@ -373,6 +379,7 @@ export type Database = {
       search_users: { Args: { p_query: string }; Returns: unknown };
       resolve_join_request: { Args: { p_table_player: string; p_approve: boolean }; Returns: undefined };
       remove_player: { Args: { p_table_player: string }; Returns: undefined };
+      add_manual_player: { Args: { p_table: string; p_display_name: string }; Returns: unknown };
       request_rebuy: { Args: { p_table_player: string }; Returns: string };
       cancel_rebuy_request: { Args: { p_request: string }; Returns: undefined };
       resolve_rebuy_request: { Args: { p_request: string; p_approve: boolean }; Returns: undefined };

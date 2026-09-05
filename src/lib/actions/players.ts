@@ -175,3 +175,38 @@ export async function removePlayerAction(
     return ok();
   });
 }
+
+/**
+ * Seats somebody the admin names, with no account behind them.
+ *
+ * The table id travels from the browser and is an argument, not a permission:
+ * `add_manual_player` checks `is_table_admin` before it looks the table up, so
+ * a forged id is refused by the same rule a genuine one passes. The name is
+ * checked here for the sake of a clear message and again in the database,
+ * which is where the rule actually lives.
+ *
+ * No notification: there is nobody to notify. That is the whole point of the
+ * feature — this person has no account, no device and no session.
+ */
+export async function addManualPlayerAction(
+  tableId: string,
+  displayName: string,
+): Promise<ActionResult<{ displayName: string }>> {
+  return guard(async () => {
+    const table = z.string().uuid().parse(tableId);
+    const name = nameSchema.parse(displayName);
+
+    const supabase = await createClient();
+    const { data, error } = await supabase.rpc('add_manual_player', {
+      p_table: table,
+      p_display_name: name,
+    });
+    if (error) throw error;
+
+    const result = data as { table_player_id?: string; display_name?: string } | null;
+    if (!result?.table_player_id) throw new AppError('RPC_BAD_SHAPE');
+
+    revalidatePath(`/table/${table}`);
+    return ok({ displayName: result.display_name ?? name });
+  });
+}

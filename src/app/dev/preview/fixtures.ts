@@ -59,6 +59,7 @@ interface SeatSpec {
   avatarUrl: string | null;
   isAdmin: boolean;
   isGuest?: boolean;
+  isManual?: boolean;
 }
 
 /**
@@ -73,6 +74,16 @@ const SEATS: SeatSpec[] = [
   { id: 'seat-michal', name: 'מיכל', buyIns: 2, finalChips: 1500, userId: 'user-michal', avatarUrl: AVATARS.michal, isAdmin: false },
   { id: 'seat-noam', name: 'נועם', buyIns: 3, finalChips: 1000, userId: 'user-noam', avatarUrl: null, isAdmin: false },
 ];
+
+/**
+ * The same table with somebody the admin wrote down: no account, no avatar,
+ * and the שחקן ידני badge. Their chips are taken out of נועם's so the game
+ * still balances, which is the point — a manual player is in the arithmetic.
+ */
+const MANUAL_SEAT: SeatSpec = {
+  id: 'seat-david', name: 'דוד', buyIns: 2, finalChips: 1000,
+  userId: null as unknown as string, avatarUrl: null, isAdmin: false, isManual: true,
+};
 
 const LEDGER: PlayerLedgerTotals[] = SEATS.map((seat) => ({
   id: seat.id,
@@ -100,6 +111,7 @@ function seatToPlayerView(
     isAdmin: seat.isAdmin,
     avatarUrl: seat.avatarUrl,
     isGuest: seat.isGuest ?? false,
+    isManual: seat.isManual ?? false,
     joinedAt: '2026-08-23T18:05:00.000Z',
     leftAt: null,
     buyInCount: seat.buyIns,
@@ -118,6 +130,12 @@ function seatToPlayerView(
 }
 
 export const PLAYERS: PlayerView[] = SEATS.map((seat) => seatToPlayerView(seat));
+
+/** A roster that includes a manual player, for the gallery. */
+export const PLAYERS_WITH_MANUAL: PlayerView[] = [
+  ...SEATS.slice(0, 3).map((seat) => seatToPlayerView(seat)),
+  seatToPlayerView(MANUAL_SEAT, { userId: null }),
+];
 
 /**
  * Seats that cashed out mid-game, for the "עזבו את השולחן" section: one player
