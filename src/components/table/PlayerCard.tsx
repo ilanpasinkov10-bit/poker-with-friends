@@ -48,9 +48,13 @@ export function PlayerCard({
             ) : null}
           </p>
 
-          {player.isGuest || player.isAdmin ? (
+          {player.isGuest || player.isManual || player.isAdmin ? (
             <div className="mt-1 flex flex-wrap items-center gap-1.5">
               {player.isGuest ? <RoleBadge tone="neutral">אורח</RoleBadge> : null}
+              {/* Somebody the admin wrote down. Marked so the roster does not
+                  suggest there is an account, a history or a profile to open
+                  behind this name — there is not. */}
+              {player.isManual ? <RoleBadge tone="neutral">שחקן ידני</RoleBadge> : null}
               {player.isAdmin ? <RoleBadge tone="brand">מנהל שולחן</RoleBadge> : null}
             </div>
           ) : null}

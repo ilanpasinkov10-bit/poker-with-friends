@@ -31,6 +31,8 @@ export interface PlayerView {
   avatarUrl: string | null;
   /** True for a player using an anonymous (guest) session. */
   isGuest: boolean;
+  /** Added by the admin, by name. No account, no session, this table only. */
+  isManual: boolean;
   joinedAt: string;
   /** Set when the player cashed out of a game in progress. */
   leftAt: string | null;
@@ -214,6 +216,9 @@ export async function loadTableView(
       isAdmin: row.user_id === table.owner_id,
       avatarUrl: row.user_id ? (avatarByUser.get(row.user_id) ?? null) : null,
       isGuest: row.user_id ? (guestByUser.get(row.user_id) ?? false) : false,
+      // Read from the column, not inferred from a missing user: a deleted
+      // account leaves real seats with no user either (0018).
+      isManual: row.is_manual === true,
       // Normalised rather than taken raw: an absent column must mean seated.
       leftAt: normaliseLeftAt(row.left_at),
       joinedAt: row.joined_at,

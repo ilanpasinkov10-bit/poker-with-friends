@@ -19,6 +19,7 @@ import { LivePot } from './LivePot';
 import { Countdown } from './Countdown';
 import { CountingPanel } from './CountingPanel';
 import { GameControls } from './GameControls';
+import { AddManualPlayerButton } from './AddManualPlayerButton';
 import { JoinCodeCard } from './JoinCodeCard';
 import { MyPlayerPanel } from './MyPlayerPanel';
 import { PendingJoinRequests, PendingRebuyRequests } from './PendingList';
@@ -159,7 +160,14 @@ function LiveSection({ model }: { model: TableViewModel }) {
       <section>
         <SectionTitle
           action={
-            <span className="text-xs text-ink-faint">{playersWord(totals.playerCount)}</span>
+            <span className="flex items-center gap-2">
+              <span className="text-xs text-ink-faint">{playersWord(totals.playerCount)}</span>
+              {/* Next to the list it changes, and only while the game can still
+                  take a player — the database refuses one afterwards anyway. */}
+              {viewer.isAdmin && (table.status === 'WAITING' || table.status === 'ACTIVE') ? (
+                <AddManualPlayerButton tableId={table.id} />
+              ) : null}
+            </span>
           }
         >
           שחקנים בשולחן
