@@ -169,9 +169,22 @@ unauthenticated endpoint.
 
 - **Site URL** — `http://localhost:3000` while developing, your production
   origin once deployed.
-- **Redirect URLs** — add both:
+- **Redirect URLs** — four entries, two per environment. No wildcards are
+  needed: the app deliberately keeps query strings out of its email links so
+  this list stays a set of plain paths.
   - `http://localhost:3000/auth/callback`
+  - `http://localhost:3000/auth/callback/recovery`
   - `https://<your-domain>/auth/callback`
+  - `https://<your-domain>/auth/callback/recovery`
+
+`/auth/callback` receives confirmation and magic links; `/auth/callback/recovery`
+receives password resets and lands on the new-password screen. Both exchange the
+link for a session, so confirming an address signs the person in — they are
+never asked to type their password again afterwards.
+
+Add a preview domain's pair as well if you want reset links to stay inside a
+preview deployment; without them Supabase substitutes Site URL and a preview
+signup confirms into production.
 
 Email confirmation links land on `/auth/callback`, which is the route that
 exchanges the `?code=` for a session. Sign-up asks Supabase to send people
@@ -179,10 +192,14 @@ there explicitly (`emailRedirectTo`), but Supabase only honours an address that
 is on this list — anything else silently becomes Site URL, and the person
 confirms their address and arrives signed out.
 
-`emailRedirectTo` is built from `NEXT_PUBLIC_SITE_URL` when it is set, and from
-Vercel's own domain otherwise. On a preview deployment that is the *production*
-domain, so a link opened from a preview signup lands on production. Set
-`NEXT_PUBLIC_SITE_URL` on the preview environment if you want it to stay there.
+`emailRedirectTo` is built from the origin of the request being served, so
+production sends production links and a preview sends its own with nothing to
+configure. That origin is only believed when it names a host the deployment can
+prove is its own — the configured `NEXT_PUBLIC_SITE_URL`, one of Vercel's own
+values for the deployment, or localhost in development. Anything else falls back
+to `NEXT_PUBLIC_SITE_URL`, because `Host` and `X-Forwarded-Host` come from the
+client, and a reset link built from a forged one would go to the real owner's
+inbox pointing at somebody else's site.
 
 ### 5d. Sending the confirmation email
 
