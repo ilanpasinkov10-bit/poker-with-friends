@@ -2,8 +2,10 @@ import type { ReactNode } from 'react';
 
 import HomePage from '@/app/(nav)/page';
 import JoinCodePage from '@/app/join/page';
+import ForgotPasswordPage from '@/app/auth/forgot/page';
 import SignInPage from '@/app/auth/sign-in/page';
 import SignUpPage from '@/app/auth/sign-up/page';
+import { ResetPasswordForm } from '@/components/auth/ResetPasswordForm';
 
 import { AppBar } from '@/components/layout/AppBar';
 import { BottomNav } from '@/components/layout/BottomNav';
@@ -174,6 +176,34 @@ export const SCREENS: PreviewScreen[] = [
     label: 'הרשמה',
     group: 'כניסה והרשמה',
     render: () => <SignUpPage searchParams={Promise.resolve({})} />,
+  },
+  {
+    id: 'sign-in-link-failed',
+    label: 'התחברות — קישור שנכשל',
+    group: 'כניסה והרשמה',
+    note:
+      'מה שרואה מי שלחץ על קישור אימות שפג תוקפו. קודם לכן המסך הזה נראה בדיוק כמו כניסה רגילה, ' +
+      'בלי שום הסבר.',
+    render: () => <SignInPage searchParams={Promise.resolve({ link: 'expired' })} />,
+  },
+  {
+    id: 'forgot-password',
+    label: 'שכחתי סיסמה',
+    group: 'כניסה והרשמה',
+    note: 'בקשת קישור לאיפוס. התשובה זהה בין אם קיים חשבון ובין אם לא.',
+    render: () => <ForgotPasswordPage searchParams={Promise.resolve({})} />,
+  },
+  {
+    id: 'reset-password',
+    label: 'סיסמה חדשה',
+    group: 'כניסה והרשמה',
+    note:
+      'המסך שאליו מגיעים מקישור האיפוס. הכפתור נעול עד שהסיסמה ארוכה מספיק ושתי הסיסמאות זהות.',
+    render: () => (
+      <Framed title="סיסמה חדשה" subtitle="איפוס סיסמה">
+        <ResetPasswordForm />
+      </Framed>
+    ),
   },
   {
     id: 'join-code',

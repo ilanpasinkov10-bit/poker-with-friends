@@ -58,6 +58,10 @@ const MESSAGES: Record<string, string> = {
   INVITATION_ALREADY_ANSWERED: 'ההזמנה כבר נענתה',
   INVITATION_NOT_FOUND: 'ההזמנה לא נמצאה',
 
+  // Confirmation and password-reset links.
+  RESET_LINK_EXPIRED: 'הקישור פג תוקף או שכבר נעשה בו שימוש. בקשו קישור חדש.',
+  PASSWORDS_DO_NOT_MATCH: 'הסיסמאות אינן זהות',
+
   // Blind levels.
   INVALID_BLIND_STRUCTURE: 'מבנה הבליינדים אינו תקין. בדקו את הסכומים ואת משך השלבים.',
   BLIND_TIMER_NOT_RUNNING: 'טיימר הבליינדים אינו פעיל בשולחן הזה',
